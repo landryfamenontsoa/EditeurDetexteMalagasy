@@ -1,15 +1,29 @@
 // src/components/Sidebar/Sidebar.jsx
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
     Box,
-    Tabs,
-    Tab,
     Typography,
     IconButton,
     useTheme,
     alpha,
     Chip,
-    LinearProgress
+    LinearProgress,
+    Tooltip,
+    Fade,
+    Slide,
+    Collapse,
+    Button,
+    TextField,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    Divider,
+    useMediaQuery,
+    SwipeableDrawer,
+    Skeleton,
+    Alert,
+    Snackbar
 } from '@mui/material';
 import {
     Spellcheck,
@@ -18,180 +32,405 @@ import {
     Translate,
     Close,
     ExpandMore,
-    ExpandLess
+    ExpandLess,
+    CheckCircle,
+    AutoFixHigh,
+    ContentCopy,
+    Refresh,
+    VolumeUp,
+    SwapHoriz,
+    TrendingUp,
+    Schedule,
+    TextFields,
+    FormatListNumbered,
+    KeyboardArrowRight,
+    Done,
+    Warning,
+    Error as ErrorIcon,
+    Info
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEditor } from '../../contexts/EditorContext';
 import Suggestions from './Suggestions';
 
-function TabPanel({ children, value, index, ...other }) {
+// ============================================
+// ANIMATIONS & VARIANTS
+// ============================================
+const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.1
+        }
+    }
+};
+
+const itemVariants = {
+    hidden: { opacity: 0, x: 20 },
+    visible: { opacity: 1, x: 0 }
+};
+
+const pulseAnimation = {
+    scale: [1, 1.05, 1],
+    transition: { duration: 2, repeat: Infinity }
+};
+
+// ============================================
+// STYLED TAB BUTTON COMPONENT
+// ============================================
+function TabButton({ icon, label, isActive, onClick, badge, color }) {
+    const theme = useTheme();
+
     return (
-        <Box
-            role="tabpanel"
-            hidden={value !== index}
-            id={`sidebar-tabpanel-${index}`}
-            {...other}
-            sx={{ flex: 1, overflow: 'auto', p: 2 }}
-        >
-            {value === index && children}
-        </Box>
+        <Tooltip title={label} placement="bottom" arrow>
+            <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onClick}
+                style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    padding: '12px 8px',
+                    border: 'none',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                    position: 'relative',
+                    background: isActive
+                        ? `linear-gradient(135deg, ${alpha(color || theme.palette.primary.main, 0.15)}, ${alpha(color || theme.palette.primary.main, 0.05)})`
+                        : 'transparent',
+                    color: isActive ? (color || theme.palette.primary.main) : theme.palette.text.secondary,
+                    transition: 'all 0.3s ease',
+                    outline: 'none'
+                }}
+            >
+                <Box sx={{ position: 'relative' }}>
+                    {icon}
+                    {badge > 0 && (
+                        <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            style={{
+                                position: 'absolute',
+                                top: -6,
+                                right: -10,
+                                minWidth: 18,
+                                height: 18,
+                                borderRadius: 9,
+                                backgroundColor: theme.palette.error.main,
+                                color: '#fff',
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: `0 2px 8px ${alpha(theme.palette.error.main, 0.4)}`
+                            }}
+                        >
+                            {badge > 99 ? '99+' : badge}
+                        </motion.div>
+                    )}
+                </Box>
+                <Typography
+                    variant="caption"
+                    sx={{
+                        fontWeight: isActive ? 600 : 500,
+                        fontSize: '0.7rem',
+                        whiteSpace: 'nowrap'
+                    }}
+                >
+                    {label}
+                </Typography>
+                {isActive && (
+                    <motion.div
+                        layoutId="activeTab"
+                        style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: '20%',
+                            right: '20%',
+                            height: 3,
+                            borderRadius: 3,
+                            background: `linear-gradient(90deg, ${color || theme.palette.primary.main}, ${theme.palette.secondary.main})`
+                        }}
+                    />
+                )}
+            </motion.button>
+        </Tooltip>
     );
 }
 
+// ============================================
+// MAIN SIDEBAR COMPONENT
+// ============================================
 export function Sidebar({ onClose }) {
     const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const { state, setActiveTab, setSidebarOpen } = useEditor();
     const [tabValue, setTabValue] = useState(0);
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-    const handleTabChange = (event, newValue) => {
+    const handleTabChange = useCallback((newValue) => {
         setTabValue(newValue);
         const tabs = ['corrections', 'suggestions', 'sentiment', 'translate'];
         setActiveTab(tabs[newValue]);
-    };
+    }, [setActiveTab]);
 
-    const handleClose = () => {
+    const handleClose = useCallback(() => {
         setSidebarOpen(false);
         onClose?.();
-    };
+    }, [setSidebarOpen, onClose]);
 
-    const errorCount = state.spellErrors.length + state.grammarErrors.length;
+    const errorCount = useMemo(() =>
+        state.spellErrors.length + state.grammarErrors.length,
+        [state.spellErrors, state.grammarErrors]
+    );
 
-    return (
+    const showSnackbar = useCallback((message, severity = 'success') => {
+        setSnackbar({ open: true, message, severity });
+    }, []);
+
+    const tabs = [
+        { icon: <Spellcheck />, label: 'Corrections', badge: errorCount, color: theme.palette.error.main },
+        { icon: <Lightbulb />, label: 'Suggestions', badge: 0, color: theme.palette.warning.main },
+        { icon: <Psychology />, label: 'Analyse', badge: 0, color: theme.palette.info.main },
+        { icon: <Translate />, label: 'Traduction', badge: 0, color: theme.palette.success.main }
+    ];
+
+    const SidebarContent = (
         <Box
             sx={{
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                bgcolor: theme.palette.background.paper,
-                borderLeft: `1px solid ${theme.palette.divider}`
+                bgcolor: theme.palette.mode === 'dark'
+                    ? alpha(theme.palette.background.paper, 0.95)
+                    : theme.palette.background.paper,
+                backdropFilter: 'blur(20px)',
+                borderLeft: isMobile ? 'none' : `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                overflow: 'hidden'
             }}
         >
-            {/* Header */}
+            {/* Header avec gradient */}
+            <Box
+                sx={{
+                    background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)}, ${alpha(theme.palette.secondary.main, 0.05)})`,
+                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                    p: 2.5,
+                    position: 'relative',
+                    overflow: 'hidden'
+                }}
+            >
+                {/* Background decoration */}
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        top: -50,
+                        right: -50,
+                        width: 150,
+                        height: 150,
+                        borderRadius: '50%',
+                        background: `radial-gradient(circle, ${alpha(theme.palette.primary.main, 0.1)}, transparent)`,
+                        pointerEvents: 'none'
+                    }}
+                />
+
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <motion.div animate={pulseAnimation}>
+                            <Box
+                                sx={{
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 2,
+                                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: `0 4px 15px ${alpha(theme.palette.primary.main, 0.3)}`
+                                }}
+                            >
+                                <AutoFixHigh sx={{ color: '#fff', fontSize: 22 }} />
+                            </Box>
+                        </motion.div>
+                        <Box>
+                            <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+                                Assistant IA
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                Votre aide à la rédaction
+                            </Typography>
+                        </Box>
+                    </Box>
+
+                    <Tooltip title="Fermer" arrow>
+                        <IconButton
+                            size="small"
+                            onClick={handleClose}
+                            sx={{
+                                bgcolor: alpha(theme.palette.grey[500], 0.1),
+                                '&:hover': {
+                                    bgcolor: alpha(theme.palette.error.main, 0.1),
+                                    color: theme.palette.error.main
+                                }
+                            }}
+                        >
+                            <Close fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                </Box>
+            </Box>
+
+            {/* Navigation Tabs */}
             <Box
                 sx={{
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    p: 2,
-                    borderBottom: `1px solid ${theme.palette.divider}`
+                    gap: 0.5,
+                    p: 1.5,
+                    bgcolor: alpha(theme.palette.grey[500], 0.03),
+                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`
                 }}
             >
-                <Typography variant="h6" fontWeight={600}>
-                    Assistant
-                </Typography>
-                <IconButton size="small" onClick={handleClose}>
-                    <Close fontSize="small" />
-                </IconButton>
+                {tabs.map((tab, index) => (
+                    <TabButton
+                        key={index}
+                        icon={tab.icon}
+                        label={tab.label}
+                        isActive={tabValue === index}
+                        onClick={() => handleTabChange(index)}
+                        badge={tab.badge}
+                        color={tab.color}
+                    />
+                ))}
             </Box>
-
-            {/* Tabs */}
-            <Tabs
-                value={tabValue}
-                onChange={handleTabChange}
-                variant="fullWidth"
-                sx={{
-                    borderBottom: `1px solid ${theme.palette.divider}`,
-                    '& .MuiTab-root': {
-                        minHeight: 56,
-                        textTransform: 'none',
-                        fontWeight: 500
-                    }
-                }}
-            >
-                <Tab
-                    icon={
-                        <Badge count={errorCount}>
-                            <Spellcheck fontSize="small" />
-                        </Badge>
-                    }
-                    label="Corrections"
-                    iconPosition="start"
-                />
-                <Tab
-                    icon={<Lightbulb fontSize="small" />}
-                    label="Suggestions"
-                    iconPosition="start"
-                />
-                <Tab
-                    icon={<Psychology fontSize="small" />}
-                    label="Analyse"
-                    iconPosition="start"
-                />
-                <Tab
-                    icon={<Translate fontSize="small" />}
-                    label="Traduction"
-                    iconPosition="start"
-                />
-            </Tabs>
 
             {/* Loading indicator */}
-            {state.isLoading && (
-                <LinearProgress sx={{ height: 2 }} />
-            )}
+            <AnimatePresence>
+                {state.isLoading && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                    >
+                        <LinearProgress
+                            sx={{
+                                height: 3,
+                                background: alpha(theme.palette.primary.main, 0.1),
+                                '& .MuiLinearProgress-bar': {
+                                    background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`
+                                }
+                            }}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
-            {/* Tab Panels */}
-            <TabPanel value={tabValue} index={0}>
-                <CorrectionsPanel />
-            </TabPanel>
-            <TabPanel value={tabValue} index={1}>
-                <Suggestions />
-            </TabPanel>
-            <TabPanel value={tabValue} index={2}>
-                <AnalysisPanel />
-            </TabPanel>
-            <TabPanel value={tabValue} index={3}>
-                <TranslationPanel />
-            </TabPanel>
+            {/* Content Area */}
+            <Box sx={{ flex: 1, overflow: 'auto', position: 'relative' }}>
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={tabValue}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        style={{ height: '100%' }}
+                    >
+                        {tabValue === 0 && <CorrectionsPanel showSnackbar={showSnackbar} />}
+                        {tabValue === 1 && <SuggestionsPanel showSnackbar={showSnackbar} />}
+                        {tabValue === 2 && <AnalysisPanel />}
+                        {tabValue === 3 && <TranslationPanel showSnackbar={showSnackbar} />}
+                    </motion.div>
+                </AnimatePresence>
+            </Box>
+
+            {/* Snackbar for notifications */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={3000}
+                onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert
+                    severity={snackbar.severity}
+                    variant="filled"
+                    sx={{ borderRadius: 2 }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
-}
 
-// Badge component for tab
-function Badge({ count, children }) {
-    const theme = useTheme();
-
-    if (!count || count === 0) return children;
-
-    return (
-        <Box sx={{ position: 'relative', display: 'inline-flex' }}>
-            {children}
-            <Box
-                sx={{
-                    position: 'absolute',
-                    top: -4,
-                    right: -8,
-                    minWidth: 16,
-                    height: 16,
-                    borderRadius: '50%',
-                    bgcolor: theme.palette.error.main,
-                    color: '#fff',
-                    fontSize: '0.65rem',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+    // Responsive: Drawer pour mobile, Box pour desktop
+    if (isMobile) {
+        return (
+            <SwipeableDrawer
+                anchor="right"
+                open={state.sidebarOpen}
+                onClose={handleClose}
+                onOpen={() => { }}
+                PaperProps={{
+                    sx: {
+                        width: '100%',
+                        maxWidth: 400,
+                        borderTopLeftRadius: 20,
+                        borderBottomLeftRadius: 20
+                    }
                 }}
             >
-                {count > 99 ? '99+' : count}
-            </Box>
-        </Box>
-    );
+                {SidebarContent}
+            </SwipeableDrawer>
+        );
+    }
+
+    return SidebarContent;
 }
 
-// Corrections Panel
-function CorrectionsPanel() {
+// ============================================
+// CORRECTIONS PANEL
+// ============================================
+function CorrectionsPanel({ showSnackbar }) {
     const theme = useTheme();
     const { state, setContent } = useEditor();
     const [expandedError, setExpandedError] = useState(null);
+    const [fixedErrors, setFixedErrors] = useState(new Set());
 
-    const allErrors = [...state.spellErrors, ...state.grammarErrors];
+    const allErrors = useMemo(() =>
+        [...state.spellErrors, ...state.grammarErrors],
+        [state.spellErrors, state.grammarErrors]
+    );
 
-    const handleApplyCorrection = (error, suggestion) => {
+    const handleApplyCorrection = useCallback((error, suggestion, index) => {
         const newContent = state.content.substring(0, error.position.start) +
             suggestion +
             state.content.substring(error.position.end);
         setContent(newContent, newContent);
-    };
+        setFixedErrors(prev => new Set([...prev, index]));
+        showSnackbar?.(`Correction appliquée: "${suggestion}"`, 'success');
+    }, [state.content, setContent, showSnackbar]);
+
+    const handleFixAll = useCallback(() => {
+        let newContent = state.content;
+        let offset = 0;
+
+        allErrors.forEach((error) => {
+            if (error.suggestions?.[0]) {
+                const start = error.position.start + offset;
+                const end = error.position.end + offset;
+                newContent = newContent.substring(0, start) + error.suggestions[0] + newContent.substring(end);
+                offset += error.suggestions[0].length - (error.position.end - error.position.start);
+            }
+        });
+
+        setContent(newContent, newContent);
+        setFixedErrors(new Set(allErrors.map((_, i) => i)));
+        showSnackbar?.(`${allErrors.length} corrections appliquées`, 'success');
+    }, [allErrors, state.content, setContent, showSnackbar]);
 
     if (allErrors.length === 0) {
         return (
@@ -201,86 +440,171 @@ function CorrectionsPanel() {
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    py: 6,
+                    p: 4,
+                    height: '100%',
                     textAlign: 'center'
                 }}
             >
                 <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 200 }}
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: 'spring', stiffness: 200, damping: 15 }}
                 >
                     <Box
                         sx={{
-                            width: 80,
-                            height: 80,
+                            width: 100,
+                            height: 100,
                             borderRadius: '50%',
-                            bgcolor: alpha(theme.palette.success.main, 0.1),
+                            background: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.2)}, ${alpha(theme.palette.success.light, 0.1)})`,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            mb: 2
+                            mb: 3,
+                            boxShadow: `0 10px 40px ${alpha(theme.palette.success.main, 0.2)}`
                         }}
                     >
-                        <Spellcheck sx={{ fontSize: 40, color: theme.palette.success.main }} />
+                        <CheckCircle sx={{ fontSize: 50, color: theme.palette.success.main }} />
                     </Box>
                 </motion.div>
-                <Typography variant="h6" fontWeight={600} gutterBottom>
-                    Aucune erreur détectée
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                    Votre texte semble correct. Continuez ainsi !
-                </Typography>
+
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                >
+                    <Typography variant="h6" fontWeight={700} gutterBottom>
+                        Parfait ! 🎉
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 250 }}>
+                        Aucune erreur détectée dans votre texte. Continuez votre excellent travail !
+                    </Typography>
+                </motion.div>
             </Box>
         );
     }
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-                {allErrors.length} erreur{allErrors.length > 1 ? 's' : ''} détectée{allErrors.length > 1 ? 's' : ''}
-            </Typography>
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Header avec stats et action */}
+            <Box
+                sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    p: 2,
+                    borderRadius: 3,
+                    background: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.1)}, ${alpha(theme.palette.warning.main, 0.05)})`,
+                    border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`
+                }}
+            >
+                <Box>
+                    <Typography variant="body2" color="text.secondary">
+                        Erreurs détectées
+                    </Typography>
+                    <Typography variant="h4" fontWeight={700} color="error.main">
+                        {allErrors.length - fixedErrors.size}
+                    </Typography>
+                </Box>
+                <Tooltip title="Corriger tout automatiquement" arrow>
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                        <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<AutoFixHigh />}
+                            onClick={handleFixAll}
+                            sx={{
+                                borderRadius: 2,
+                                background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                                boxShadow: `0 4px 15px ${alpha(theme.palette.primary.main, 0.3)}`,
+                                textTransform: 'none',
+                                fontWeight: 600
+                            }}
+                        >
+                            Tout corriger
+                        </Button>
+                    </motion.div>
+                </Tooltip>
+            </Box>
 
-            <AnimatePresence>
+            {/* Liste des erreurs */}
+            <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+            >
                 {allErrors.map((error, index) => (
                     <motion.div
                         key={`${error.word}-${index}`}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ delay: index * 0.05 }}
+                        variants={itemVariants}
+                        layout
                     >
                         <ErrorCard
                             error={error}
+                            index={index}
                             expanded={expandedError === index}
+                            isFixed={fixedErrors.has(index)}
                             onToggle={() => setExpandedError(expandedError === index ? null : index)}
-                            onApply={(suggestion) => handleApplyCorrection(error, suggestion)}
+                            onApply={(suggestion) => handleApplyCorrection(error, suggestion, index)}
                         />
                     </motion.div>
                 ))}
-            </AnimatePresence>
+            </motion.div>
         </Box>
     );
 }
 
-// Error Card Component
-function ErrorCard({ error, expanded, onToggle, onApply }) {
+// ============================================
+// ERROR CARD COMPONENT
+// ============================================
+function ErrorCard({ error, index, expanded, isFixed, onToggle, onApply }) {
     const theme = useTheme();
     const isSpelling = error.type === 'spelling';
+    const color = isSpelling ? theme.palette.error.main : theme.palette.warning.main;
+
+    if (isFixed) {
+        return (
+            <motion.div
+                initial={{ opacity: 1 }}
+                animate={{ opacity: 0.5 }}
+                transition={{ duration: 0.3 }}
+            >
+                <Box
+                    sx={{
+                        mb: 1.5,
+                        p: 2,
+                        borderRadius: 2,
+                        bgcolor: alpha(theme.palette.success.main, 0.1),
+                        border: `1px solid ${alpha(theme.palette.success.main, 0.3)}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5
+                    }}
+                >
+                    <Done sx={{ color: theme.palette.success.main }} />
+                    <Typography sx={{ textDecoration: 'line-through', color: 'text.secondary' }}>
+                        {error.word}
+                    </Typography>
+                    <Typography sx={{ color: theme.palette.success.main, fontWeight: 600 }}>
+                        ✓ Corrigé
+                    </Typography>
+                </Box>
+            </motion.div>
+        );
+    }
 
     return (
         <Box
             sx={{
-                bgcolor: alpha(
-                    isSpelling ? theme.palette.error.main : theme.palette.warning.main,
-                    0.05
-                ),
-                border: `1px solid ${alpha(
-                    isSpelling ? theme.palette.error.main : theme.palette.warning.main,
-                    0.2
-                )}`,
-                borderRadius: 2,
-                overflow: 'hidden'
+                mb: 1.5,
+                borderRadius: 3,
+                overflow: 'hidden',
+                bgcolor: alpha(color, 0.05),
+                border: `1px solid ${alpha(color, 0.2)}`,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                    boxShadow: `0 4px 20px ${alpha(color, 0.15)}`,
+                    transform: 'translateY(-2px)'
+                }
             }}
         >
             <Box
@@ -293,340 +617,587 @@ function ErrorCard({ error, expanded, onToggle, onApply }) {
                 }}
                 onClick={onToggle}
             >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Box
                         sx={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            bgcolor: isSpelling ? theme.palette.error.main : theme.palette.warning.main
+                            width: 36,
+                            height: 36,
+                            borderRadius: 2,
+                            bgcolor: alpha(color, 0.15),
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
                         }}
-                    />
+                    >
+                        {isSpelling ? (
+                            <ErrorIcon sx={{ color, fontSize: 20 }} />
+                        ) : (
+                            <Warning sx={{ color, fontSize: 20 }} />
+                        )}
+                    </Box>
                     <Box>
-                        <Typography
-                            sx={{
-                                fontWeight: 600,
-                                color: isSpelling ? theme.palette.error.main : theme.palette.warning.main
-                            }}
-                        >
+                        <Typography fontWeight={600} sx={{ color }}>
                             {error.word}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                            {isSpelling ? 'Orthographe' : 'Grammaire'}
+                            {isSpelling ? 'Faute d\'orthographe' : 'Erreur grammaticale'}
                         </Typography>
                     </Box>
                 </Box>
-                <IconButton size="small">
-                    {expanded ? <ExpandLess /> : <ExpandMore />}
-                </IconButton>
+
+                <motion.div animate={{ rotate: expanded ? 180 : 0 }}>
+                    <IconButton size="small">
+                        <ExpandMore />
+                    </IconButton>
+                </motion.div>
             </Box>
 
-            <AnimatePresence>
-                {expanded && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                    >
-                        <Box sx={{ px: 2, pb: 2 }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                                Suggestions :
-                            </Typography>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                {error.suggestions?.map((suggestion, idx) => (
-                                    <Chip
-                                        key={idx}
-                                        label={suggestion}
-                                        size="small"
-                                        onClick={() => onApply(suggestion)}
-                                        sx={{
-                                            cursor: 'pointer',
-                                            '&:hover': {
-                                                bgcolor: theme.palette.primary.main,
+            <Collapse in={expanded}>
+                <Box sx={{ px: 2, pb: 2 }}>
+                    <Divider sx={{ mb: 2 }} />
+
+                    {error.message && (
+                        <Alert
+                            severity="info"
+                            sx={{ mb: 2, borderRadius: 2 }}
+                            icon={<Info fontSize="small" />}
+                        >
+                            {error.message}
+                        </Alert>
+                    )}
+
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                        Suggestions de correction :
+                    </Typography>
+
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {error.suggestions?.map((suggestion, idx) => (
+                            <motion.div
+                                key={idx}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                <Chip
+                                    label={suggestion}
+                                    onClick={() => onApply(suggestion)}
+                                    icon={idx === 0 ? <AutoFixHigh fontSize="small" /> : undefined}
+                                    sx={{
+                                        cursor: 'pointer',
+                                        fontWeight: idx === 0 ? 600 : 400,
+                                        bgcolor: idx === 0 ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                                        border: `1px solid ${idx === 0 ? theme.palette.primary.main : theme.palette.divider}`,
+                                        '&:hover': {
+                                            bgcolor: theme.palette.primary.main,
+                                            color: '#fff',
+                                            '& .MuiChip-icon': {
                                                 color: '#fff'
                                             }
-                                        }}
-                                    />
-                                ))}
-                            </Box>
-                        </Box>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                                        }
+                                    }}
+                                />
+                            </motion.div>
+                        ))}
+                    </Box>
+                </Box>
+            </Collapse>
         </Box>
     );
 }
 
-// Analysis Panel
+// ============================================
+// SUGGESTIONS PANEL
+// ============================================
+function SuggestionsPanel({ showSnackbar }) {
+    const theme = useTheme();
+    const { state } = useEditor();
+
+    // Utilise le composant Suggestions existant ou affiche un placeholder
+    return (
+        <Box sx={{ p: 2 }}>
+            <Suggestions showSnackbar={showSnackbar} />
+        </Box>
+    );
+}
+
+// ============================================
+// ANALYSIS PANEL
+// ============================================
 function AnalysisPanel() {
     const theme = useTheme();
     const { state } = useEditor();
 
-    const sentimentData = state.sentiment || {
-        label: 'neutral',
-        confidence: 0.5
-    };
+    const sentimentData = state.sentiment || { label: 'neutral', confidence: 0.5 };
 
-    const getSentimentInfo = (label) => {
+    const getSentimentInfo = useCallback((label) => {
         const info = {
-            very_positive: { emoji: '😄', text: 'Très positif', color: theme.palette.success.main },
-            positive: { emoji: '🙂', text: 'Positif', color: theme.palette.success.light },
-            neutral: { emoji: '😐', text: 'Neutre', color: theme.palette.grey[500] },
-            negative: { emoji: '😕', text: 'Négatif', color: theme.palette.warning.main },
-            very_negative: { emoji: '😢', text: 'Très négatif', color: theme.palette.error.main }
+            very_positive: { emoji: '😄', text: 'Très positif', color: theme.palette.success.main, gradient: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.light})` },
+            positive: { emoji: '🙂', text: 'Positif', color: theme.palette.success.light, gradient: `linear-gradient(135deg, ${theme.palette.success.light}, ${theme.palette.success.main})` },
+            neutral: { emoji: '😐', text: 'Neutre', color: theme.palette.grey[500], gradient: `linear-gradient(135deg, ${theme.palette.grey[400]}, ${theme.palette.grey[600]})` },
+            negative: { emoji: '😕', text: 'Négatif', color: theme.palette.warning.main, gradient: `linear-gradient(135deg, ${theme.palette.warning.main}, ${theme.palette.warning.dark})` },
+            very_negative: { emoji: '😢', text: 'Très négatif', color: theme.palette.error.main, gradient: `linear-gradient(135deg, ${theme.palette.error.main}, ${theme.palette.error.dark})` }
         };
         return info[label] || info.neutral;
-    };
+    }, [theme]);
 
     const sentimentInfo = getSentimentInfo(sentimentData.label);
 
+    const stats = [
+        { icon: <TextFields />, label: 'Mots', value: state.stats.words, color: theme.palette.primary.main },
+        { icon: <FormatListNumbered />, label: 'Caractères', value: state.stats.characters, color: theme.palette.secondary.main },
+        { icon: <TrendingUp />, label: 'Phrases', value: state.stats.sentences, color: theme.palette.success.main },
+        { icon: <Schedule />, label: 'Paragraphes', value: state.stats.paragraphs, color: theme.palette.warning.main }
+    ];
+
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {/* Sentiment Analysis */}
-            <Box>
-                <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                    Analyse du sentiment
-                </Typography>
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {/* Sentiment Analysis Card */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+            >
                 <Box
                     sx={{
                         p: 3,
-                        borderRadius: 2,
-                        bgcolor: alpha(sentimentInfo.color, 0.1),
+                        borderRadius: 4,
+                        background: `linear-gradient(135deg, ${alpha(sentimentInfo.color, 0.15)}, ${alpha(sentimentInfo.color, 0.05)})`,
                         border: `1px solid ${alpha(sentimentInfo.color, 0.3)}`,
-                        textAlign: 'center'
+                        textAlign: 'center',
+                        position: 'relative',
+                        overflow: 'hidden'
                     }}
                 >
-                    <Typography sx={{ fontSize: '3rem', mb: 1 }}>
-                        {sentimentInfo.emoji}
-                    </Typography>
-                    <Typography variant="h6" fontWeight={600} sx={{ color: sentimentInfo.color }}>
-                        {sentimentInfo.text}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Confiance: {Math.round(sentimentData.confidence * 100)}%
-                    </Typography>
-                    <LinearProgress
-                        variant="determinate"
-                        value={sentimentData.confidence * 100}
+                    {/* Decorative circles */}
+                    <Box
                         sx={{
-                            mt: 2,
-                            height: 6,
-                            borderRadius: 3,
-                            bgcolor: alpha(sentimentInfo.color, 0.2),
-                            '& .MuiLinearProgress-bar': {
-                                bgcolor: sentimentInfo.color,
-                                borderRadius: 3
-                            }
+                            position: 'absolute',
+                            top: -30,
+                            right: -30,
+                            width: 100,
+                            height: 100,
+                            borderRadius: '50%',
+                            bgcolor: alpha(sentimentInfo.color, 0.1)
                         }}
                     />
-                </Box>
-            </Box>
 
-            {/* Text Statistics */}
+                    <Typography variant="overline" color="text.secondary" fontWeight={600}>
+                        Analyse du sentiment
+                    </Typography>
+
+                    <motion.div
+                        animate={{ scale: [1, 1.1, 1] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                    >
+                        <Typography sx={{ fontSize: '4rem', my: 2 }}>
+                            {sentimentInfo.emoji}
+                        </Typography>
+                    </motion.div>
+
+                    <Typography variant="h5" fontWeight={700} sx={{ color: sentimentInfo.color, mb: 1 }}>
+                        {sentimentInfo.text}
+                    </Typography>
+
+                    <Box sx={{ mt: 2, px: 4 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary">
+                                Confiance
+                            </Typography>
+                            <Typography variant="caption" fontWeight={600}>
+                                {Math.round(sentimentData.confidence * 100)}%
+                            </Typography>
+                        </Box>
+                        <LinearProgress
+                            variant="determinate"
+                            value={sentimentData.confidence * 100}
+                            sx={{
+                                height: 8,
+                                borderRadius: 4,
+                                bgcolor: alpha(sentimentInfo.color, 0.2),
+                                '& .MuiLinearProgress-bar': {
+                                    background: sentimentInfo.gradient,
+                                    borderRadius: 4
+                                }
+                            }}
+                        />
+                    </Box>
+                </Box>
+            </motion.div>
+
+            {/* Statistics Grid */}
             <Box>
-                <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <TrendingUp fontSize="small" />
                     Statistiques du texte
                 </Typography>
+
                 <Box
                     sx={{
                         display: 'grid',
                         gridTemplateColumns: 'repeat(2, 1fr)',
-                        gap: 2
+                        gap: 1.5
                     }}
                 >
-                    <StatCard
-                        label="Mots"
-                        value={state.stats.words}
-                        color={theme.palette.primary.main}
-                    />
-                    <StatCard
-                        label="Caractères"
-                        value={state.stats.characters}
-                        color={theme.palette.secondary.main}
-                    />
-                    <StatCard
-                        label="Phrases"
-                        value={state.stats.sentences}
-                        color={theme.palette.success.main}
-                    />
-                    <StatCard
-                        label="Paragraphes"
-                        value={state.stats.paragraphs}
-                        color={theme.palette.warning.main}
-                    />
+                    {stats.map((stat, index) => (
+                        <motion.div
+                            key={stat.label}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.1 * index }}
+                        >
+                            <StatCard {...stat} />
+                        </motion.div>
+                    ))}
                 </Box>
             </Box>
 
             {/* Reading Time */}
-            <Box>
-                <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                    Temps de lecture estimé
-                </Typography>
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+            >
                 <Box
                     sx={{
-                        p: 2,
-                        borderRadius: 2,
-                        bgcolor: alpha(theme.palette.info.main, 0.1),
+                        p: 2.5,
+                        borderRadius: 3,
+                        background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.1)}, ${alpha(theme.palette.info.light, 0.05)})`,
+                        border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
                         display: 'flex',
                         alignItems: 'center',
                         gap: 2
                     }}
                 >
-                    <Typography sx={{ fontSize: '2rem' }}>📖</Typography>
+                    <Box
+                        sx={{
+                            width: 50,
+                            height: 50,
+                            borderRadius: 2,
+                            bgcolor: alpha(theme.palette.info.main, 0.15),
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                    >
+                        <Schedule sx={{ color: theme.palette.info.main, fontSize: 28 }} />
+                    </Box>
                     <Box>
-                        <Typography variant="h5" fontWeight={600}>
+                        <Typography variant="caption" color="text.secondary">
+                            Temps de lecture estimé
+                        </Typography>
+                        <Typography variant="h5" fontWeight={700} color="info.main">
                             {state.stats.readingTime || 0} min
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                            À 200 mots/minute
+                            Basé sur 200 mots/minute
                         </Typography>
                     </Box>
                 </Box>
-            </Box>
+            </motion.div>
         </Box>
     );
 }
 
-// Stat Card Component
-function StatCard({ label, value, color }) {
+// ============================================
+// STAT CARD COMPONENT
+// ============================================
+function StatCard({ icon, label, value, color }) {
     const theme = useTheme();
 
     return (
         <Box
             sx={{
                 p: 2,
-                borderRadius: 2,
-                bgcolor: alpha(color, 0.1),
-                border: `1px solid ${alpha(color, 0.2)}`
+                borderRadius: 3,
+                bgcolor: alpha(color, 0.08),
+                border: `1px solid ${alpha(color, 0.15)}`,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                    transform: 'translateY(-3px)',
+                    boxShadow: `0 8px 25px ${alpha(color, 0.2)}`
+                }
             }}
         >
-            <Typography variant="h4" fontWeight={700} sx={{ color }}>
-                {value.toLocaleString()}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-                {label}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Box sx={{ color: alpha(color, 0.7) }}>
+                    {React.cloneElement(icon, { fontSize: 'small' })}
+                </Box>
+                <Typography variant="caption" color="text.secondary" fontWeight={500}>
+                    {label}
+                </Typography>
+            </Box>
+            <Typography variant="h4" fontWeight={800} sx={{ color }}>
+                {(value || 0).toLocaleString()}
             </Typography>
         </Box>
     );
 }
 
-// Translation Panel
-function TranslationPanel() {
+// ============================================
+// TRANSLATION PANEL
+// ============================================
+function TranslationPanel({ showSnackbar }) {
     const theme = useTheme();
     const { state } = useEditor();
+    const [sourceLang, setSourceLang] = useState('fr');
     const [targetLang, setTargetLang] = useState('en');
     const [translation, setTranslation] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
 
     const languages = [
+        { code: 'fr', name: 'Français', flag: '🇫🇷' },
         { code: 'en', name: 'Anglais', flag: '🇬🇧' },
         { code: 'es', name: 'Espagnol', flag: '🇪🇸' },
         { code: 'de', name: 'Allemand', flag: '🇩🇪' },
         { code: 'it', name: 'Italien', flag: '🇮🇹' },
         { code: 'pt', name: 'Portugais', flag: '🇵🇹' },
-        { code: 'ar', name: 'Arabe', flag: '🇸🇦' }
+        { code: 'ar', name: 'Arabe', flag: '🇸🇦' },
+        { code: 'zh', name: 'Chinois', flag: '🇨🇳' },
+        { code: 'ja', name: 'Japonais', flag: '🇯🇵' },
+        { code: 'ko', name: 'Coréen', flag: '🇰🇷' }
     ];
 
+    const handleSwapLanguages = () => {
+        const temp = sourceLang;
+        setSourceLang(targetLang);
+        setTargetLang(temp);
+    };
+
     const handleTranslate = async () => {
-        if (!state.selectedText && !state.content) return;
+        if (!state.selectedText && !state.content) {
+            showSnackbar?.('Veuillez saisir du texte à traduire', 'warning');
+            return;
+        }
 
         setIsTranslating(true);
         try {
             const textToTranslate = state.selectedText || state.content;
-            // Call translation API
             const result = await import('../../services/apiService').then(m =>
-                m.apiService.translate(textToTranslate, state.language, targetLang)
+                m.apiService.translate(textToTranslate, sourceLang, targetLang)
             );
             setTranslation(result.translated_text || textToTranslate);
+            showSnackbar?.('Traduction terminée', 'success');
         } catch (error) {
             console.error('Translation error:', error);
+            showSnackbar?.('Erreur lors de la traduction', 'error');
         } finally {
             setIsTranslating(false);
         }
     };
 
+    const handleCopyTranslation = () => {
+        navigator.clipboard.writeText(translation);
+        showSnackbar?.('Traduction copiée !', 'success');
+    };
+
+    const textToTranslate = state.selectedText || state.content || '';
+
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <Box>
-                <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                    Traduire vers
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {languages.map(lang => (
-                        <Chip
-                            key={lang.code}
-                            label={`${lang.flag} ${lang.name}`}
-                            onClick={() => setTargetLang(lang.code)}
-                            variant={targetLang === lang.code ? 'filled' : 'outlined'}
-                            color={targetLang === lang.code ? 'primary' : 'default'}
-                            sx={{ cursor: 'pointer' }}
-                        />
-                    ))}
-                </Box>
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+            {/* Language Selector */}
+            <Box
+                sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    p: 2,
+                    borderRadius: 3,
+                    bgcolor: alpha(theme.palette.grey[500], 0.05),
+                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                }}
+            >
+                <FormControl size="small" sx={{ flex: 1 }}>
+                    <Select
+                        value={sourceLang}
+                        onChange={(e) => setSourceLang(e.target.value)}
+                        sx={{
+                            borderRadius: 2,
+                            '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                            bgcolor: theme.palette.background.paper
+                        }}
+                    >
+                        {languages.map(lang => (
+                            <MenuItem key={lang.code} value={lang.code}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <span>{lang.flag}</span>
+                                    <span>{lang.name}</span>
+                                </Box>
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
+                <Tooltip title="Inverser les langues" arrow>
+                    <IconButton
+                        onClick={handleSwapLanguages}
+                        sx={{
+                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                            '&:hover': {
+                                bgcolor: alpha(theme.palette.primary.main, 0.2),
+                                transform: 'rotate(180deg)'
+                            },
+                            transition: 'all 0.3s ease'
+                        }}
+                    >
+                        <SwapHoriz />
+                    </IconButton>
+                </Tooltip>
+
+                <FormControl size="small" sx={{ flex: 1 }}>
+                    <Select
+                        value={targetLang}
+                        onChange={(e) => setTargetLang(e.target.value)}
+                        sx={{
+                            borderRadius: 2,
+                            '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                            bgcolor: theme.palette.background.paper
+                        }}
+                    >
+                        {languages.map(lang => (
+                            <MenuItem key={lang.code} value={lang.code}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <span>{lang.flag}</span>
+                                    <span>{lang.name}</span>
+                                </Box>
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
             </Box>
 
+            {/* Source Text */}
             <Box>
-                <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                    Texte source
+                <Typography variant="subtitle2" fontWeight={600} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    📝 Texte source
+                    {textToTranslate && (
+                        <Chip
+                            label={`${textToTranslate.split(' ').length} mots`}
+                            size="small"
+                            sx={{ ml: 'auto', height: 20, fontSize: '0.65rem' }}
+                        />
+                    )}
                 </Typography>
                 <Box
                     sx={{
                         p: 2,
-                        borderRadius: 2,
-                        bgcolor: alpha(theme.palette.grey[500], 0.1),
-                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 3,
+                        bgcolor: alpha(theme.palette.grey[500], 0.05),
+                        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                         maxHeight: 150,
-                        overflow: 'auto'
+                        overflow: 'auto',
+                        minHeight: 80
                     }}
                 >
-                    <Typography variant="body2" color="text.secondary">
-                        {state.selectedText || state.content || 'Sélectionnez du texte ou écrivez quelque chose...'}
+                    <Typography
+                        variant="body2"
+                        color={textToTranslate ? 'text.primary' : 'text.secondary'}
+                        sx={{ fontStyle: textToTranslate ? 'normal' : 'italic' }}
+                    >
+                        {textToTranslate || 'Sélectionnez du texte ou écrivez quelque chose...'}
                     </Typography>
                 </Box>
             </Box>
 
-            <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleTranslate}
-                disabled={isTranslating}
-                style={{
-                    padding: '12px 24px',
-                    borderRadius: 10,
-                    border: 'none',
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                    color: '#fff',
-                    fontWeight: 600,
-                    cursor: isTranslating ? 'not-allowed' : 'pointer',
-                    opacity: isTranslating ? 0.7 : 1
-                }}
-            >
-                {isTranslating ? 'Traduction en cours...' : 'Traduire'}
-            </motion.button>
-
-            {translation && (
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
+            {/* Translate Button */}
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    onClick={handleTranslate}
+                    disabled={isTranslating || !textToTranslate}
+                    startIcon={isTranslating ? <Refresh className="spinning" /> : <Translate />}
+                    sx={{
+                        py: 1.5,
+                        borderRadius: 3,
+                        background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                        boxShadow: `0 4px 20px ${alpha(theme.palette.primary.main, 0.3)}`,
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '1rem',
+                        '&:disabled': {
+                            background: theme.palette.grey[300]
+                        },
+                        '& .spinning': {
+                            animation: 'spin 1s linear infinite'
+                        },
+                        '@keyframes spin': {
+                            '0%': { transform: 'rotate(0deg)' },
+                            '100%': { transform: 'rotate(360deg)' }
+                        }
+                    }}
                 >
-                    <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                        Traduction
-                    </Typography>
-                    <Box
-                        sx={{
-                            p: 2,
-                            borderRadius: 2,
-                            bgcolor: alpha(theme.palette.success.main, 0.1),
-                            border: `1px solid ${alpha(theme.palette.success.main, 0.3)}`
-                        }}
+                    {isTranslating ? 'Traduction en cours...' : 'Traduire'}
+                </Button>
+            </motion.div>
+
+            {/* Translation Result */}
+            <AnimatePresence>
+                {translation && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20, height: 0 }}
+                        animate={{ opacity: 1, y: 0, height: 'auto' }}
+                        exit={{ opacity: 0, y: 20, height: 0 }}
+                        transition={{ duration: 0.3 }}
                     >
-                        <Typography variant="body2">
-                            {translation}
-                        </Typography>
-                    </Box>
-                </motion.div>
-            )}
+                        <Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                                <Typography variant="subtitle2" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    ✨ Traduction
+                                </Typography>
+                                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                    <Tooltip title="Écouter" arrow>
+                                        <IconButton size="small">
+                                            <VolumeUp fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Copier" arrow>
+                                        <IconButton size="small" onClick={handleCopyTranslation}>
+                                            <ContentCopy fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                </Box>
+                            </Box>
+                            <Box
+                                sx={{
+                                    p: 2,
+                                    borderRadius: 3,
+                                    background: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.1)}, ${alpha(theme.palette.success.light, 0.05)})`,
+                                    border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`
+                                }}
+                            >
+                                <Typography variant="body2" sx={{ lineHeight: 1.7 }}>
+                                    {translation}
+                                </Typography>
+                            </Box>
+                        </Box>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Quick Language Chips */}
+            <Box>
+                <Typography variant="caption" color="text.secondary" gutterBottom sx={{ display: 'block' }}>
+                    Langues populaires
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {languages.slice(0, 6).map(lang => (
+                        <motion.div key={lang.code} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                            <Chip
+                                label={`${lang.flag} ${lang.name}`}
+                                size="small"
+                                onClick={() => setTargetLang(lang.code)}
+                                variant={targetLang === lang.code ? 'filled' : 'outlined'}
+                                color={targetLang === lang.code ? 'primary' : 'default'}
+                                sx={{
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    fontWeight: targetLang === lang.code ? 600 : 400
+                                }}
+                            />
+                        </motion.div>
+                    ))}
+                </Box>
+            </Box>
         </Box>
     );
 }
