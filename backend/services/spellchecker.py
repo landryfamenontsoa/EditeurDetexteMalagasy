@@ -3,7 +3,7 @@ from rapidfuzz import process
 
 # Construire le chemin absolu du fichier dictionary.txt
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-dictionary_path = os.path.join(BASE_DIR, "..", "data", "dictionary.txt")
+dictionary_path = os.path.join(BASE_DIR, "..", "data","dataset","lexiques", "dictionnaire_mg.json")
 
 # Charger le dictionnaire
 try:
