@@ -1,32 +1,83 @@
-import { useState, useCallback } from 'react';
+// src/hooks/useAutocomplete.js
+import { useState, useCallback, useRef } from 'react';
+import { debounce } from 'lodash';
+import { apiService } from '../services/apiService';
 
-export const useAutocomplete = () => {
-    const [predictions, setPredictions] = useState([]);
+export function useAutocomplete() {
+    const [suggestions, setSuggestions] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [selectedIndex, setSelectedIndex] = useState(-1);
+    const abortControllerRef = useRef(null);
 
-    const getPredictions = useCallback(async (context, position) => {
-        setIsLoading(true);
-        try {
-            // const result = await autocompleteAPI.predict(context, position);
-            // setPredictions(result.predictions || []);
-            return context;
-        } catch (error) {
-            console.error('Autocomplete error:', error);
-            setPredictions([]);
-            return [];
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
+    const getSuggestions = useCallback(
+        debounce(async (text, cursorPosition) => {
+            if (!text || cursorPosition < 1) {
+                setSuggestions([]);
+                return;
+            }
 
-    const clearPredictions = useCallback(() => {
-        setPredictions([]);
+            // Get the current word being typed
+            const textBeforeCursor = text.substring(0, cursorPosition);
+            const words = textBeforeCursor.split(/\s+/);
+            const currentWord = words[words.length - 1];
+
+            if (currentWord.length < 2) {
+                setSuggestions([]);
+                return;
+            }
+
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+            abortControllerRef.current = new AbortController();
+
+            setIsLoading(true);
+            try {
+                const result = await apiService.autocomplete(text, cursorPosition);
+                setSuggestions(result.suggestions || []);
+                setSelectedIndex(-1);
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('Autocomplete failed:', error);
+                }
+            } finally {
+                setIsLoading(false);
+            }
+        }, 300),
+        []
+    );
+
+    const selectNext = useCallback(() => {
+        setSelectedIndex(prev =>
+            prev < suggestions.length - 1 ? prev + 1 : 0
+        );
+    }, [suggestions.length]);
+
+    const selectPrevious = useCallback(() => {
+        setSelectedIndex(prev =>
+            prev > 0 ? prev - 1 : suggestions.length - 1
+        );
+    }, [suggestions.length]);
+
+    const getSelectedSuggestion = useCallback(() => {
+        return selectedIndex >= 0 ? suggestions[selectedIndex] : null;
+    }, [selectedIndex, suggestions]);
+
+    const clearSuggestions = useCallback(() => {
+        setSuggestions([]);
+        setSelectedIndex(-1);
     }, []);
 
     return {
-        predictions,
+        suggestions,
         isLoading,
-        getPredictions,
-        clearPredictions,
+        selectedIndex,
+        getSuggestions,
+        selectNext,
+        selectPrevious,
+        getSelectedSuggestion,
+        clearSuggestions
     };
-};
+}
+
+export default useAutocomplete;

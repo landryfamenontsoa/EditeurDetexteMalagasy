@@ -92,16 +92,16 @@ export const createCustomTheme = (primaryColor = '#8D6E63') => {
         palette: {
             mode: 'light',
             primary: {
-                main: primaryColor,
-                light: adjustColor(primaryColor, 30),
-                dark: adjustColor(primaryColor, 70),
                 contrastText: '#ffffff',
+                main: '#2E7D32', // Vert Madagascar
+                light: '#4CAF50',
+                dark: '#1B5E20',
             },
             secondary: {
-                main: '#FF8A80',
-                light: '#FFCDD2',
-                dark: '#F44336',
                 contrastText: '#000000',
+                main: '#FF6B35', // Orange traditionnel
+                light: '#FF8A65',
+                dark: '#E64A19'
             },
             background: {
                 default: '#FAFAFA',
