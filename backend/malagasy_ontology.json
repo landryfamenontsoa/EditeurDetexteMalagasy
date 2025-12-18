@@ -1,3 +1,16 @@
 {
-  "ontology": {}
+  "ontology": {
+    "teny": { "label": "teny", "type": "concept", "description": "mot, mot ou parole" },
+    "fiteny": { "label": "fiteny", "type": "concept", "description": "langue" },
+    "tanana": { "label": "tanana", "type": "concept", "description": "ville, bourg" },
+    "antananarivo": { "label": "Antananarivo", "type": "city", "description": "Capitale de Madagascar" },
+    "toamasina": { "label": "Toamasina", "type": "city", "description": "Ville portuaire" },
+    "varimbazaha": { "label": "varimbazaha", "type": "concept", "description": "étranger" }
+  },
+  "relations": [
+    { "from": "antananarivo", "to": "tanana", "rel": "is_a" },
+    { "from": "toamasina", "to": "tanana", "rel": "is_a" },
+    { "from": "fiteny", "to": "teny", "rel": "related_to" },
+    { "from": "varimbazaha", "to": "antananarivo", "rel": "related_to" }
+  ]
 }

@@ -1,0 +1,112 @@
+{
+  "info": {
+    "name": "Semantic Suggest Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Tests pour endpoint /api/semantic-suggest"
+  },
+  "item": [
+    {
+      "name": "Semantic - suggest by text",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"text\": \"Antananarivo\", \"depth\": 1, \"limit\": 8 }"
+        },
+        "url": { "raw": "http://localhost:5000/api/semantic-suggest", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","semantic-suggest"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has suggestions array\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json).to.have.property('suggestions');",
+              "    pm.expect(json.suggestions).to.be.an('array');",
+              "});",
+              "",
+              "pm.test(\"Target is present\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json).to.have.property('target');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Semantic - suggest by concept",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"concept\": \"tanana\", \"depth\": 1 }"
+        },
+        "url": { "raw": "http://localhost:5000/api/semantic-suggest", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","semantic-suggest"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Suggestions array and target match concept\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json.suggestions).to.be.an('array');",
+              "    pm.expect(json.target).to.eql('tanana');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Semantic - missing params (expect 400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        },
+        "url": { "raw": "http://localhost:5000/api/semantic-suggest", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api","semantic-suggest"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 400 when missing text and concept\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test(\"Body contains error message\", function () {",
+              "    var json = pm.response.json();",
+              "    pm.expect(json).to.have.property('error');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ]
+}

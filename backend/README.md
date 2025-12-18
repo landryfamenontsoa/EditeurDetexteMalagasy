@@ -20,3 +20,20 @@ API backend skeleton for Malagasy NLP tools.
 4. Run `python app.py`
 
 Endpoints are mounted under `/api`, for example `/api/spell-check`.
+
+## Semantic suggestions (Knowledge Graph)
+
+You can query the semantic suggester at:
+
+- POST `/api/semantic-suggest`
+
+Body examples (JSON):
+
+```
+{ "text": "Antananarivo" }
+{ "concept": "antananarivo", "depth": 1, "limit": 8 }
+```
+
+Returns JSON `{ "target": "antananarivo", "suggestions": [...] }` where suggestions include related nodes and relation types.
+
+Dev helper: to reload the ontology from disk without restarting the server, POST to `/api/semantic-reload` — it clears the graph cache and returns counts: `{ "nodes": N, "adj": M }`.

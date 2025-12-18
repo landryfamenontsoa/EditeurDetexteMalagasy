@@ -1,8 +1,13 @@
 # test_dataset.py
 import json
 import os
+import pytest
 
 BASE = "dataset"
+
+# Skip whole module when dataset folder is not available (conservative)
+if not os.path.isdir(BASE):
+    pytest.skip("dataset folder not present - skipping dataset integration checks", allow_module_level=True)
 
 def load_json(path):
     with open(f"{BASE}/{path}", 'r', encoding='utf-8') as f:
