@@ -1,0 +1,91 @@
+############################
+# GLOBAL
+############################
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.swo
+*.bak
+*.old
+*.orig
+
+############################
+# ENV / SECRETS
+############################
+.env
+.env.*
+!.env.example
+
+############################
+# PYTHON
+############################
+__pycache__/
+*.py[cod]
+*$py.class
+
+############################
+# VIRTUAL ENV
+############################
+venv/
+.venv/
+env/
+ENV/
+
+############################
+# FLASK
+############################
+instance/
+.flaskenv
+
+############################
+# TEST / CACHE / TOOLS
+############################
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.cache/
+
+############################
+# BUILD / DIST
+############################
+build/
+dist/
+*.egg-info/
+
+############################
+# NLP / ML GENERATED FILES
+############################
+# Modèles entraînés
+backend/data/models/*.pkl
+backend/data/models/*.bin
+backend/data/models/*.joblib
+
+# Graphes / sorties calculées
+backend/data/knowledge_graph/*.json
+
+############################
+# CORPUS (volumineux / régénérables)
+############################
+backend/data/corpus/*.txt
+
+############################
+# SCRAPING OUTPUTS
+############################
+backend/scrapers/output/
+backend/scrapers/*.log
+
+############################
+# IDE / EDITORS
+############################
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+############################
+# OS / LOCK FILES
+############################
+*.lock
