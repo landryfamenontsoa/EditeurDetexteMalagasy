@@ -17,8 +17,8 @@ const SuggestionTooltip = ({ word, suggestion, confidence, onAccept, onIgnore })
     // Formater le niveau de confiance
     const confidencePercent = Math.round(confidence * 100);
 
-    // Déterminer la couleur de soulignement en fonction du niveau de confiance
-    const getUnderlineColor = () => {
+    // Déterminer la couleur en fonction du niveau de confiance
+    const getConfidenceColor = () => {
         if (confidencePercent >= 80) return theme.palette.success.main;
         if (confidencePercent >= 50) return theme.palette.warning.main;
         return theme.palette.error.main;
@@ -28,88 +28,72 @@ const SuggestionTooltip = ({ word, suggestion, confidence, onAccept, onIgnore })
         <Paper
             elevation={2}
             sx={{
-                maxWidth: 220,
+                width: 180,
                 borderRadius: 1,
                 overflow: 'hidden',
                 border: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
                 boxShadow: `0 2px 6px ${alpha(theme.palette.common.black, 0.1)}`
             }}
         >
-            {/* En-tête avec le mot incorrect */}
+            {/* Suggestion centrée */}
             <Box
                 sx={{
-                    p: 0.5,
-                    pl: 1,
-                    backgroundColor: alpha(theme.palette.background.default, 0.6),
-                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`
-                }}
-            >
-                <Typography
-                    variant="caption"
-                    sx={{
-                        fontSize: '0.7rem',
-                        color: theme.palette.text.secondary,
-                        textDecoration: 'line-through',
-                        fontStyle: 'italic'
-                    }}
-                >
-                    {word}
-                </Typography>
-            </Box>
-
-            {/* Suggestion avec boutons d'action */}
-            <Box
-                sx={{
-                    p: 0.75,
-                    pl: 1,
-                    pr: 1,
+                    py: 1,
                     display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderLeft: `3px solid ${getUnderlineColor()}`
+                    justifyContent: 'center',
+                    borderBottom: `2px solid ${getConfidenceColor()}`
                 }}
             >
                 <Typography
                     variant="body2"
                     fontWeight="medium"
                     sx={{
-                        fontSize: '0.85rem',
+                        fontSize: '0.9rem',
+                        textAlign: 'center',
                         color: theme.palette.text.primary
                     }}
                 >
                     {suggestion}
                 </Typography>
+            </Box>
 
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <IconButton
-                        size="small"
-                        onClick={() => onAccept(suggestion)}
-                        sx={{
-                            p: 0.5,
-                            color: theme.palette.success.main,
-                            '&:hover': {
-                                backgroundColor: alpha(theme.palette.success.main, 0.1)
-                            }
-                        }}
-                    >
-                        <CheckIcon fontSize="small" sx={{ fontSize: '0.9rem' }} />
-                    </IconButton>
+            {/* Boutons d'action */}
+            <Box
+                sx={{
+                    py: 0.5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: alpha(theme.palette.background.default, 0.4)
+                }}
+            >
+                <IconButton
+                    size="small"
+                    onClick={() => onAccept(suggestion)}
+                    sx={{
+                        p: 0.5,
+                        mx: 1,
+                        color: theme.palette.success.main
+                    }}
+                    aria-label="Accepter la suggestion"
+                >
+                    <CheckIcon fontSize="small" />
+                </IconButton>
 
-                    <IconButton
-                        size="small"
-                        onClick={onIgnore}
-                        sx={{
-                            p: 0.5,
-                            ml: 0.25,
-                            color: theme.palette.text.secondary,
-                            '&:hover': {
-                                backgroundColor: alpha(theme.palette.action.hover, 0.1)
-                            }
-                        }}
-                    >
-                        <CloseIcon fontSize="small" sx={{ fontSize: '0.9rem' }} />
-                    </IconButton>
-                </Box>
+                <IconButton
+                    size="small"
+                    onClick={onIgnore}
+                    sx={{
+                        p: 0.5,
+                        mx: 1,
+                        color: theme.palette.grey[600]
+                    }}
+                    aria-label="Ignorer la suggestion"
+                >
+                    <CloseIcon fontSize="small" />
+                </IconButton>
             </Box>
         </Paper>
     );
