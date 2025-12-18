@@ -1,0 +1,63 @@
+{
+  "cities": [
+    "Antananarivo",
+    "Toamasina",
+    "Antsirabe",
+    "Mahajanga",
+    "Fianarantsoa",
+    "Toliara",
+    "Antsiranana",
+    "Manakara",
+    "Ambositra",
+    "Morondava",
+    "Nosy Be",
+    "Sambava",
+    "Antalaha",
+    "Ambanja",
+    "Farafangana",
+    "Mananjary",
+    "Maintirano",
+    "Ambatondrazaka",
+    "Moramanga",
+    "Tsiroanomandidy"
+  ],
+  "regions": [
+    "Analamanga",
+    "Vakinankaratra",
+    "Itasy",
+    "Bongolava",
+    "Boeny",
+    "Sofia",
+    "Betsiboka",
+    "Melaky",
+    "Alaotra-Mangoro",
+    "Atsinanana",
+    "Analanjirofo",
+    "Atsimo-Andrefana",
+    "Androy",
+    "Anosy",
+    "Menabe",
+    "Ihorombe",
+    "Amoron'i Mania",
+    "Haute Matsiatra",
+    "Vatovavy",
+    "Fitovinany",
+    "Diana",
+    "Sava"
+  ],
+  "titles": [
+    "Andriamatoa",
+    "Ramatoa",
+    "Ingahy",
+    "Raiamandreny",
+    "Tompoko"
+  ],
+  "org_keywords": [
+    "Fikambanana",
+    "Antoko",
+    "Orinasa",
+    "Banky",
+    "Sekoly",
+    "Hopitaly"
+  ]
+}
