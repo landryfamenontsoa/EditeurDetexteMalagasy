@@ -96,4 +96,7 @@ Technologie	Rôle:
 - Python Software Foundation. Python 3 Documentation. https://docs.python.org/3/
 - Pallets Projects. Flask Documentation. https://flask.palletsprojects.com/
 - Sebastián Ramírez. FastAPI Documentation. https://fastapi.tiangolo.com/
+- 
+5- Lien du vidéo: 
+  https://drive.google.com/file/d/1MHBnM9QEovf7sDzqVcPg_CsFgHjLPlfm/view?usp=drive_link
 
