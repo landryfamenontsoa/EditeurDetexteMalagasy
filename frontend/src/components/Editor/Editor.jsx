@@ -1,6 +1,6 @@
-// src/components/Editor/Editor.jsx (Complet)
-import React, { useRef, useCallback, useEffect, useMemo } from 'react';
-import { Box, Paper, useTheme, alpha } from '@mui/material';
+// src/components/Editor/Editor.jsx (Version améliorée)
+import React, { useRef, useCallback, useEffect, useState } from 'react';
+import { Box, Paper, useTheme, alpha, Popper, Fade } from '@mui/material';
 import { motion } from 'framer-motion';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -9,7 +9,8 @@ import { useEditor } from '../../contexts/EditorContext';
 import { useSpellCheck } from '../../hooks/useSpellCheck';
 import { useTextAnalysis } from '../../hooks/useTextAnalysis';
 import { useSentiment } from '../../hooks/useSentiment';
-import { textUtils } from '../../utils/textUtils';
+import SuggestionTooltip from '../Popups/SuggestionTooltip';
+import { apiService } from '../../services/apiService';
 import './Editor.css';
 
 const modules = {
@@ -38,6 +39,12 @@ export function Editor() {
     const theme = useTheme();
     const quillRef = useRef(null);
     const containerRef = useRef(null);
+    const [tooltipData, setTooltipData] = useState(null);
+    const [tooltipAnchorEl, setTooltipAnchorEl] = useState(null);
+    const [typingTimeout, setTypingTimeout] = useState(null);
+    const [isTyping, setIsTyping] = useState(false);
+    const [lastCheckedText, setLastCheckedText] = useState('');
+    const [lastCursorPosition, setLastCursorPosition] = useState(null);
 
     const {
         state,
@@ -47,38 +54,174 @@ export function Editor() {
         updateStats,
         setSpellErrors,
         setGrammarErrors,
-        setSentiment,
-        openContextMenu,
-        openSpellCheckPopup
+        setSentiment
     } = useEditor();
 
     const { errors: spellErrors, checkSpelling, isChecking } = useSpellCheck(state.language);
     const { getStatistics, analyzeText } = useTextAnalysis(state.language);
-    const { analyzeSentiment, sentiment } = useSentiment();
+    const { analyzeSentiment } = useSentiment();
 
-    // Handle content change
+    // Fonction pour obtenir le mot actuel sous le curseur
+    const getCurrentWordAtCursor = useCallback(() => {
+        const editor = quillRef.current?.getEditor();
+        if (!editor) return { word: '', range: null };
+
+        const selection = editor.getSelection();
+        if (!selection) return { word: '', range: null };
+
+        const text = editor.getText();
+
+        // Trouver les limites du mot actuel
+        let start = selection.index;
+        let end = selection.index;
+
+        // Reculer jusqu'au début du mot
+        while (start > 0 && !/\s/.test(text[start - 1])) {
+            start--;
+        }
+
+        // Avancer jusqu'à la fin du mot
+        while (end < text.length && !/\s/.test(text[end])) {
+            end++;
+        }
+
+        const word = text.substring(start, end).trim();
+        const range = { index: start, length: end - start };
+
+        return { word, range };
+    }, []);
+
+    // Fonction pour obtenir la position du curseur dans l'éditeur
+    const getCursorPosition = useCallback(() => {
+        const editor = quillRef.current?.getEditor();
+        if (!editor) return null;
+
+        const selection = editor.getSelection();
+        if (!selection) return null;
+
+        const bounds = editor.getBounds(selection.index);
+        const editorContainer = editor.container;
+        const rect = editorContainer.getBoundingClientRect();
+
+        return {
+            x: rect.left + bounds.left,
+            y: rect.top + bounds.top + bounds.height,
+            index: selection.index
+        };
+    }, []);
+
+    // Fonction pour vérifier le mot actuel
+    const checkCurrentWord = useCallback(async () => {
+        const { word, range } = getCurrentWordAtCursor();
+
+        if (!word || word.length < 2 || word === lastCheckedText) return;
+
+        setLastCheckedText(word);
+
+        try {
+            // Nettoyer le mot de la ponctuation
+            const cleanWord = word.replace(/[.,!?;:'"()[\]{}]/g, '');
+            if (cleanWord.length < 2) return;
+
+            const result = await apiService.checkWord(cleanWord);
+
+            if (!result.correct && result.suggestion) {
+                const position = getCursorPosition();
+                if (position) {
+                    // Créer un élément temporaire pour servir d'ancre
+                    const tempAnchor = document.createElement('div');
+                    tempAnchor.style.position = 'absolute';
+                    tempAnchor.style.left = `${position.x}px`;
+                    tempAnchor.style.top = `${position.y}px`;
+                    document.body.appendChild(tempAnchor);
+
+                    setTooltipAnchorEl(tempAnchor);
+                    setTooltipData({
+                        word: cleanWord,
+                        suggestion: result.suggestion,
+                        confidence: result.confidence,
+                        range: range
+                    });
+
+                    // Nettoyer l'élément après un délai
+                    setTimeout(() => {
+                        if (document.body.contains(tempAnchor)) {
+                            document.body.removeChild(tempAnchor);
+                        }
+                    }, 100);
+                }
+            } else {
+                setTooltipData(null);
+                setTooltipAnchorEl(null);
+            }
+        } catch (error) {
+            console.error('Erreur lors de la vérification:', error);
+        }
+    }, [getCurrentWordAtCursor, getCursorPosition, lastCheckedText]);
+
+    // Fonction pour gérer les changements de contenu
     const handleChange = useCallback((content, delta, source, editor) => {
         const text = editor.getText();
         const html = editor.getHTML();
 
         setContent(text, html);
 
-        // Update statistics
+        // Mettre à jour les statistiques
         const stats = getStatistics(text);
         updateStats(stats);
 
-        // Trigger spell check
-        if (state.autoCorrect && text.trim().length > 0) {
-            checkSpelling(text);
+        // Indiquer que l'utilisateur est en train de taper
+        setIsTyping(true);
+
+        // Effacer le timeout précédent
+        if (typingTimeout) {
+            clearTimeout(typingTimeout);
         }
 
-        // Analyze sentiment for longer texts
-        if (text.length > 50) {
-            analyzeSentiment(text);
-        }
-    }, [state.autoCorrect, state.language]);
+        // Définir un nouveau timeout
+        const timeout = setTimeout(() => {
+            setIsTyping(false);
+            checkCurrentWord();
 
-    // Handle selection change
+            // Vérification orthographique complète pour la liste d'erreurs
+            if (state.autoCorrect && text.trim().length > 0) {
+                checkSpelling(text);
+            }
+
+            // Analyser le sentiment pour les textes plus longs
+            if (text.length > 50) {
+                analyzeSentiment(text);
+            }
+        }, 500);
+
+        setTypingTimeout(timeout);
+    }, [state.autoCorrect, checkCurrentWord, getStatistics, updateStats, setContent, checkSpelling, analyzeSentiment, typingTimeout]);
+
+    // Gérer l'acceptation d'une suggestion
+    const handleAcceptSuggestion = useCallback((suggestion) => {
+        const editor = quillRef.current?.getEditor();
+        if (!editor || !tooltipData || !tooltipData.range) return;
+
+        // Remplacer le mot par la suggestion
+        editor.deleteText(tooltipData.range.index, tooltipData.range.length);
+        editor.insertText(tooltipData.range.index, suggestion);
+
+        // Repositionner le curseur après le mot
+        editor.setSelection(tooltipData.range.index + suggestion.length);
+
+        // Fermer le tooltip
+        setTooltipData(null);
+        setTooltipAnchorEl(null);
+        setLastCheckedText(suggestion);
+    }, [tooltipData]);
+
+    // Gérer l'ignorance d'une suggestion
+    const handleIgnoreSuggestion = useCallback(() => {
+        setTooltipData(null);
+        setTooltipAnchorEl(null);
+    }, []);
+
+    // Gérer les changements de sélection
     const handleSelectionChange = useCallback((range, source, editor) => {
         if (range) {
             const text = editor.getText();
@@ -88,98 +231,38 @@ export function Editor() {
 
             setSelectedText(selectedText);
 
-            // Calculate line and column
+            // Calculer la ligne et la colonne
             const textBeforeCursor = text.substring(0, range.index);
             const lines = textBeforeCursor.split('\n');
             const line = lines.length;
             const column = lines[lines.length - 1].length + 1;
 
             setCursorPosition({ line, column, index: range.index });
-        }
-    }, []);
 
-    // Handle right-click context menu
-    const handleContextMenu = useCallback((event) => {
-        event.preventDefault();
+            // Stocker la position du curseur
+            const cursorPos = getCursorPosition();
+            if (cursorPos && (!lastCursorPosition ||
+                cursorPos.index !== lastCursorPosition.index)) {
+                setLastCursorPosition(cursorPos);
 
-        const editor = quillRef.current?.getEditor();
-        if (!editor) return;
-
-        const selection = editor.getSelection();
-        const text = editor.getText();
-
-        let selectedText = '';
-        let wordAtCursor = null;
-
-        if (selection) {
-            if (selection.length > 0) {
-                selectedText = text.substring(selection.index, selection.index + selection.length);
-            } else {
-                wordAtCursor = textUtils.getWordAtPosition(text, selection.index);
-                selectedText = wordAtCursor?.word || '';
+                // Vérifier le mot actuel après un court délai
+                setTimeout(() => {
+                    if (!isTyping) {
+                        checkCurrentWord();
+                    }
+                }, 100);
             }
         }
+    }, [getCursorPosition, lastCursorPosition, isTyping, checkCurrentWord, setSelectedText, setCursorPosition]);
 
-        // Check if there's an error at this position
-        const errorAtPosition = spellErrors.find(err => {
-            if (selection) {
-                return selection.index >= err.position.start && selection.index <= err.position.end;
-            }
-            return false;
-        });
-
-        openContextMenu({
-            x: event.clientX,
-            y: event.clientY,
-            text: selectedText,
-            error: errorAtPosition,
-            position: selection?.index || 0
-        });
-    }, [spellErrors, openContextMenu]);
-
-    // Handle click on error
-    const handleErrorClick = useCallback((event, error) => {
-        openSpellCheckPopup({
-            error,
-            x: event.clientX,
-            y: event.clientY
-        });
-    }, [openSpellCheckPopup]);
-
-    // Update errors in state
+    // Nettoyer les timeouts lors du démontage
     useEffect(() => {
-        setSpellErrors(spellErrors);
-    }, [spellErrors, setSpellErrors]);
-
-    // Update sentiment in state
-    useEffect(() => {
-        if (sentiment) {
-            setSentiment(sentiment);
-        }
-    }, [sentiment, setSentiment]);
-
-    // Keyboard shortcuts
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            // Ctrl+S - Save
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                console.log('Save document');
-            }
-
-            // F7 - Spell check
-            if (e.key === 'F7') {
-                e.preventDefault();
-                const editor = quillRef.current?.getEditor();
-                if (editor) {
-                    checkSpelling(editor.getText());
-                }
+        return () => {
+            if (typingTimeout) {
+                clearTimeout(typingTimeout);
             }
         };
-
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [checkSpelling]);
+    }, [typingTimeout]);
 
     return (
         <Box
@@ -189,7 +272,8 @@ export function Editor() {
                 display: 'flex',
                 flexDirection: 'column',
                 p: { xs: 2, sm: 3 },
-                overflow: 'hidden'
+                overflow: 'hidden',
+                position: 'relative'
             }}
         >
             <motion.div
@@ -240,7 +324,6 @@ export function Editor() {
                                 marginBottom: '0.5em'
                             }
                         }}
-                        onContextMenu={handleContextMenu}
                     >
                         <ReactQuill
                             ref={quillRef}
@@ -252,56 +335,42 @@ export function Editor() {
                             formats={formats}
                             placeholder="Commencez à écrire votre texte ici..."
                         />
-
-                        {/* Error Highlights Overlay */}
-                        <ErrorHighlights
-                            errors={spellErrors}
-                            quillRef={quillRef}
-                            onErrorClick={handleErrorClick}
-                        />
                     </Box>
                 </Paper>
             </motion.div>
-        </Box>
-    );
-}
 
-// Error Highlights Component
-function ErrorHighlights({ errors, quillRef, onErrorClick }) {
-    const theme = useTheme();
-
-    if (!errors || errors.length === 0) return null;
-
-    return (
-        <Box
-            sx={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                pointerEvents: 'none',
-                overflow: 'hidden'
-            }}
-        >
-            {errors.map((error, index) => (
-                <Box
-                    key={`${error.word}-${index}`}
-                    sx={{
-                        position: 'absolute',
-                        pointerEvents: 'auto',
-                        cursor: 'pointer',
-                        borderBottom: `2px wavy ${error.type === 'spelling'
-                            ? theme.palette.error.main
-                            : theme.palette.warning.main
-                            }`,
-                        '&:hover': {
-                            backgroundColor: alpha(theme.palette.error.main, 0.1)
-                        }
-                    }}
-                    onClick={(e) => onErrorClick(e, error)}
-                />
-            ))}
+            {/* Tooltip de suggestion */}
+            <Popper
+                open={!!tooltipData && !!tooltipAnchorEl}
+                anchorEl={tooltipAnchorEl}
+                placement="bottom-start"
+                transition
+                disablePortal={false}
+                modifiers={[
+                    {
+                        name: 'offset',
+                        options: {
+                            offset: [0, 8],
+                        },
+                    },
+                ]}
+            >
+                {({ TransitionProps }) => (
+                    <Fade {...TransitionProps} timeout={200}>
+                        <div>
+                            {tooltipData && (
+                                <SuggestionTooltip
+                                    word={tooltipData.word}
+                                    suggestion={tooltipData.suggestion}
+                                    confidence={tooltipData.confidence}
+                                    onAccept={handleAcceptSuggestion}
+                                    onIgnore={handleIgnoreSuggestion}
+                                />
+                            )}
+                        </div>
+                    </Fade>
+                )}
+            </Popper>
         </Box>
     );
 }

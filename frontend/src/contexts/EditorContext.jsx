@@ -1,175 +1,107 @@
-// src/context/EditorContext.jsx
+// src/contexts/EditorContext.jsx
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 
-const EditorContext = createContext(null);
+const EditorContext = createContext();
 
 const initialState = {
     content: '',
     htmlContent: '',
     selectedText: '',
-    cursorPosition: null,
-
-    // Analysis results
     spellErrors: [],
     grammarErrors: [],
-    suggestions: [],
-    sentiment: null,
-
-    // UI State
-    isLoading: false,
-    isSidebarOpen: true,
-    isChatOpen: false,
-    activeTab: 'corrections',
-
-    // Popups
-    contextMenu: { open: false, x: 0, y: 0, text: '' },
-    spellCheckPopup: { open: false, error: null, x: 0, y: 0 },
-    translationPopup: { open: false, text: '', x: 0, y: 0 },
-
-    // Statistics
+    sentiment: { label: 'neutral', confidence: 0.5, score: 0 },
+    
+    // Stats initiales
     stats: {
-        characters: 0,
         words: 0,
+        characters: 0,
         sentences: 0,
         paragraphs: 0,
         readingTime: 0
     },
 
-    // History
-    history: [],
-    historyIndex: -1,
-
-    // Settings
-    language: 'fr',
-    autoCorrect: true,
-    showSuggestions: true
+    // États manquants ajoutés pour corriger les erreurs
+    cursorPosition: { line: 1, column: 1, index: 0 },
+    contextMenu: { isOpen: false, x: 0, y: 0, data: null },
+    spellCheckPopup: { isOpen: false, x: 0, y: 0, error: null },
+    
+    isLoading: false,
+    sidebarOpen: false,
+    activeTab: 'corrections',
+    language: 'fr', // Langue par défaut
+    autoCorrect: true // Auto-correction par défaut
 };
 
 function editorReducer(state, action) {
     switch (action.type) {
         case 'SET_CONTENT':
+            // Note: Editor.jsx calcule aussi les stats, mais on garde une logique par défaut ici
+            const words = action.payload.content.split(/\s+/).filter(Boolean).length;
+            const characters = action.payload.content.length;
+            const sentences = action.payload.content.split(/[.!?]+/).filter(Boolean).length;
+            const paragraphs = action.payload.content.split(/\n\n+/).filter(Boolean).length;
+            const readingTime = Math.ceil(words / 200);
+
             return {
                 ...state,
-                content: action.payload.text,
-                htmlContent: action.payload.html || action.payload.text
+                content: action.payload.content,
+                htmlContent: action.payload.htmlContent,
+                stats: { words, characters, sentences, paragraphs, readingTime }
             };
+        
+        // Cas ajouté pour corriger "updateStats is not a function"
+        case 'UPDATE_STATS':
+            return { ...state, stats: { ...state.stats, ...action.payload } };
 
         case 'SET_SELECTED_TEXT':
             return { ...state, selectedText: action.payload };
-
+        
+        // Cas ajouté pour corriger "setCursorPosition is not a function"
         case 'SET_CURSOR_POSITION':
             return { ...state, cursorPosition: action.payload };
 
         case 'SET_SPELL_ERRORS':
             return { ...state, spellErrors: action.payload };
-
         case 'SET_GRAMMAR_ERRORS':
             return { ...state, grammarErrors: action.payload };
-
-        case 'SET_SUGGESTIONS':
-            return { ...state, suggestions: action.payload };
-
         case 'SET_SENTIMENT':
             return { ...state, sentiment: action.payload };
+        
+        // Cas ajoutés pour corriger "openContextMenu is not a function"
+        case 'OPEN_CONTEXT_MENU':
+            return { 
+                ...state, 
+                contextMenu: { 
+                    isOpen: true, 
+                    x: action.payload.x, 
+                    y: action.payload.y, 
+                    data: action.payload 
+                } 
+            };
+        case 'CLOSE_CONTEXT_MENU':
+            return { ...state, contextMenu: { ...state.contextMenu, isOpen: false } };
+
+        // Cas ajoutés pour corriger "openSpellCheckPopup is not a function"
+        case 'OPEN_SPELL_POPUP':
+            return {
+                ...state,
+                spellCheckPopup: {
+                    isOpen: true,
+                    x: action.payload.x,
+                    y: action.payload.y,
+                    error: action.payload.error
+                }
+            };
+        case 'CLOSE_SPELL_POPUP':
+            return { ...state, spellCheckPopup: { ...state.spellCheckPopup, isOpen: false } };
 
         case 'SET_LOADING':
             return { ...state, isLoading: action.payload };
-
-        case 'TOGGLE_SIDEBAR':
-            return { ...state, isSidebarOpen: !state.isSidebarOpen };
-
         case 'SET_SIDEBAR_OPEN':
-            return { ...state, isSidebarOpen: action.payload };
-
-        case 'TOGGLE_CHAT':
-            return { ...state, isChatOpen: !state.isChatOpen };
-
-        case 'SET_CHAT_OPEN':
-            return { ...state, isChatOpen: action.payload };
-
+            return { ...state, sidebarOpen: action.payload };
         case 'SET_ACTIVE_TAB':
-            return { ...state, activeTab: action.payload };
-
-        case 'OPEN_CONTEXT_MENU':
-            return {
-                ...state,
-                contextMenu: { open: true, ...action.payload }
-            };
-
-        case 'CLOSE_CONTEXT_MENU':
-            return {
-                ...state,
-                contextMenu: { ...state.contextMenu, open: false }
-            };
-
-        case 'OPEN_SPELL_CHECK_POPUP':
-            return {
-                ...state,
-                spellCheckPopup: { open: true, ...action.payload }
-            };
-
-        case 'CLOSE_SPELL_CHECK_POPUP':
-            return {
-                ...state,
-                spellCheckPopup: { ...state.spellCheckPopup, open: false }
-            };
-
-        case 'OPEN_TRANSLATION_POPUP':
-            return {
-                ...state,
-                translationPopup: { open: true, ...action.payload }
-            };
-
-        case 'CLOSE_TRANSLATION_POPUP':
-            return {
-                ...state,
-                translationPopup: { ...state.translationPopup, open: false }
-            };
-
-        case 'UPDATE_STATS':
-            return { ...state, stats: action.payload };
-
-        case 'SET_LANGUAGE':
-            return { ...state, language: action.payload };
-
-        case 'TOGGLE_AUTO_CORRECT':
-            return { ...state, autoCorrect: !state.autoCorrect };
-
-        case 'TOGGLE_SUGGESTIONS':
-            return { ...state, showSuggestions: !state.showSuggestions };
-
-        case 'ADD_TO_HISTORY':
-            const newHistory = state.history.slice(0, state.historyIndex + 1);
-            newHistory.push(action.payload);
-            return {
-                ...state,
-                history: newHistory,
-                historyIndex: newHistory.length - 1
-            };
-
-        case 'UNDO':
-            if (state.historyIndex > 0) {
-                return {
-                    ...state,
-                    historyIndex: state.historyIndex - 1,
-                    content: state.history[state.historyIndex - 1]
-                };
-            }
-            return state;
-
-        case 'REDO':
-            if (state.historyIndex < state.history.length - 1) {
-                return {
-                    ...state,
-                    historyIndex: state.historyIndex + 1,
-                    content: state.history[state.historyIndex + 1]
-                };
-            }
-            return state;
-
-        case 'RESET':
-            return initialState;
-
+            return { ...state, activeTab: action.payload, sidebarOpen: true };
+            
         default:
             return state;
     }
@@ -178,118 +110,82 @@ function editorReducer(state, action) {
 export function EditorProvider({ children }) {
     const [state, dispatch] = useReducer(editorReducer, initialState);
 
-    const actions = {
-        setContent: useCallback((text, html) => {
-            dispatch({ type: 'SET_CONTENT', payload: { text, html } });
-        }, []),
+    const setContent = useCallback((content, htmlContent) => {
+        dispatch({ type: 'SET_CONTENT', payload: { content, htmlContent } });
+    }, []);
 
-        setSelectedText: useCallback((text) => {
-            dispatch({ type: 'SET_SELECTED_TEXT', payload: text });
-        }, []),
+    // Fonction manquante ajoutée
+    const updateStats = useCallback((stats) => {
+        dispatch({ type: 'UPDATE_STATS', payload: stats });
+    }, []);
 
-        setCursorPosition: useCallback((position) => {
-            dispatch({ type: 'SET_CURSOR_POSITION', payload: position });
-        }, []),
+    const setSelectedText = useCallback((text) => {
+        dispatch({ type: 'SET_SELECTED_TEXT', payload: text });
+    }, []);
 
-        setSpellErrors: useCallback((errors) => {
-            dispatch({ type: 'SET_SPELL_ERRORS', payload: errors });
-        }, []),
+    // Fonction manquante ajoutée
+    const setCursorPosition = useCallback((position) => {
+        dispatch({ type: 'SET_CURSOR_POSITION', payload: position });
+    }, []);
 
-        setGrammarErrors: useCallback((errors) => {
-            dispatch({ type: 'SET_GRAMMAR_ERRORS', payload: errors });
-        }, []),
+    const setSpellErrors = useCallback((errors) => {
+        dispatch({ type: 'SET_SPELL_ERRORS', payload: errors });
+    }, []);
 
-        setSuggestions: useCallback((suggestions) => {
-            dispatch({ type: 'SET_SUGGESTIONS', payload: suggestions });
-        }, []),
+    const setGrammarErrors = useCallback((errors) => {
+        dispatch({ type: 'SET_GRAMMAR_ERRORS', payload: errors });
+    }, []);
 
-        setSentiment: useCallback((sentiment) => {
-            dispatch({ type: 'SET_SENTIMENT', payload: sentiment });
-        }, []),
+    const setSentiment = useCallback((sentiment) => {
+        dispatch({ type: 'SET_SENTIMENT', payload: sentiment });
+    }, []);
 
-        setLoading: useCallback((loading) => {
-            dispatch({ type: 'SET_LOADING', payload: loading });
-        }, []),
+    // Fonction manquante ajoutée
+    const openContextMenu = useCallback((data) => {
+        dispatch({ type: 'OPEN_CONTEXT_MENU', payload: data });
+    }, []);
 
-        toggleSidebar: useCallback(() => {
-            dispatch({ type: 'TOGGLE_SIDEBAR' });
-        }, []),
+    // Fonction manquante ajoutée (utile si vous l'utilisez plus tard)
+    const closeContextMenu = useCallback(() => {
+        dispatch({ type: 'CLOSE_CONTEXT_MENU' });
+    }, []);
 
-        setSidebarOpen: useCallback((open) => {
-            dispatch({ type: 'SET_SIDEBAR_OPEN', payload: open });
-        }, []),
+    // Fonction manquante ajoutée
+    const openSpellCheckPopup = useCallback((data) => {
+        dispatch({ type: 'OPEN_SPELL_POPUP', payload: data });
+    }, []);
 
-        toggleChat: useCallback(() => {
-            dispatch({ type: 'TOGGLE_CHAT' });
-        }, []),
+    const setLoading = useCallback((loading) => {
+        dispatch({ type: 'SET_LOADING', payload: loading });
+    }, []);
 
-        setChatOpen: useCallback((open) => {
-            dispatch({ type: 'SET_CHAT_OPEN', payload: open });
-        }, []),
+    const setSidebarOpen = useCallback((open) => {
+        dispatch({ type: 'SET_SIDEBAR_OPEN', payload: open });
+    }, []);
 
-        setActiveTab: useCallback((tab) => {
-            dispatch({ type: 'SET_ACTIVE_TAB', payload: tab });
-        }, []),
+    const setActiveTab = useCallback((tab) => {
+        dispatch({ type: 'SET_ACTIVE_TAB', payload: tab });
+    }, []);
 
-        openContextMenu: useCallback((data) => {
-            dispatch({ type: 'OPEN_CONTEXT_MENU', payload: data });
-        }, []),
-
-        closeContextMenu: useCallback(() => {
-            dispatch({ type: 'CLOSE_CONTEXT_MENU' });
-        }, []),
-
-        openSpellCheckPopup: useCallback((data) => {
-            dispatch({ type: 'OPEN_SPELL_CHECK_POPUP', payload: data });
-        }, []),
-
-        closeSpellCheckPopup: useCallback(() => {
-            dispatch({ type: 'CLOSE_SPELL_CHECK_POPUP' });
-        }, []),
-
-        openTranslationPopup: useCallback((data) => {
-            dispatch({ type: 'OPEN_TRANSLATION_POPUP', payload: data });
-        }, []),
-
-        closeTranslationPopup: useCallback(() => {
-            dispatch({ type: 'CLOSE_TRANSLATION_POPUP' });
-        }, []),
-
-        updateStats: useCallback((stats) => {
-            dispatch({ type: 'UPDATE_STATS', payload: stats });
-        }, []),
-
-        setLanguage: useCallback((lang) => {
-            dispatch({ type: 'SET_LANGUAGE', payload: lang });
-        }, []),
-
-        toggleAutoCorrect: useCallback(() => {
-            dispatch({ type: 'TOGGLE_AUTO_CORRECT' });
-        }, []),
-
-        toggleSuggestions: useCallback(() => {
-            dispatch({ type: 'TOGGLE_SUGGESTIONS' });
-        }, []),
-
-        addToHistory: useCallback((content) => {
-            dispatch({ type: 'ADD_TO_HISTORY', payload: content });
-        }, []),
-
-        undo: useCallback(() => {
-            dispatch({ type: 'UNDO' });
-        }, []),
-
-        redo: useCallback(() => {
-            dispatch({ type: 'REDO' });
-        }, []),
-
-        reset: useCallback(() => {
-            dispatch({ type: 'RESET' });
-        }, [])
+    const value = {
+        state,
+        setContent,
+        updateStats,         // Ajouté
+        setSelectedText,
+        setCursorPosition,   // Ajouté
+        setSpellErrors,
+        setGrammarErrors,
+        setSentiment,
+        openContextMenu,     // Ajouté
+        closeContextMenu,    // Ajouté
+        openSpellCheckPopup, // Ajouté
+        setLoading,
+        setSidebarOpen,
+        setActiveTab
     };
 
     return (
-        <EditorContext.Provider value={{ state, ...actions }}>
+        <EditorContext.Provider value={value}>
             {children}
         </EditorContext.Provider>
     );
@@ -298,7 +194,7 @@ export function EditorProvider({ children }) {
 export function useEditor() {
     const context = useContext(EditorContext);
     if (!context) {
-        throw new Error('useEditor must be used within EditorProvider');
+        throw new Error('useEditor must be used within an EditorProvider');
     }
     return context;
 }

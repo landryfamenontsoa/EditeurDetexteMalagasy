@@ -125,9 +125,6 @@ export function Footer() {
                 <Typography variant="caption" color="text.secondary">
                     Ln {state.cursorPosition?.line || 1}, Col {state.cursorPosition?.column || 1}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
-                    {state.language.toUpperCase()}
-                </Typography>
             </Box>
         </Box>
     );

@@ -1,5 +1,5 @@
 // src/components/Sidebar/Sidebar.jsx
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
     Box,
     Typography,
@@ -23,7 +23,8 @@ import {
     SwipeableDrawer,
     Skeleton,
     Alert,
-    Snackbar
+    Snackbar,
+    CircularProgress
 } from '@mui/material';
 import {
     Spellcheck,
@@ -47,11 +48,12 @@ import {
     Done,
     Warning,
     Error as ErrorIcon,
-    Info
+    Info,
+    Sync
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEditor } from '../../contexts/EditorContext';
-import Suggestions from './Suggestions';
+import { apiService } from '../../services/apiService';
 
 // ============================================
 // ANIMATIONS & VARIANTS
@@ -79,7 +81,7 @@ const pulseAnimation = {
 // ============================================
 // STYLED TAB BUTTON COMPONENT
 // ============================================
-function TabButton({ icon, label, isActive, onClick, badge, color }) {
+function TabButton({ icon, label, isActive, onClick, badge, color, isLoading }) {
     const theme = useTheme();
 
     return (
@@ -109,8 +111,12 @@ function TabButton({ icon, label, isActive, onClick, badge, color }) {
                 }}
             >
                 <Box sx={{ position: 'relative' }}>
-                    {icon}
-                    {badge > 0 && (
+                    {isLoading ? (
+                        <CircularProgress size={20} sx={{ color: color || theme.palette.primary.main }} />
+                    ) : (
+                        icon
+                    )}
+                    {badge > 0 && !isLoading && (
                         <motion.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
@@ -170,9 +176,51 @@ function TabButton({ icon, label, isActive, onClick, badge, color }) {
 export function Sidebar({ onClose }) {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-    const { state, setActiveTab, setSidebarOpen } = useEditor();
+    const { state, setActiveTab, setSidebarOpen, setSpellErrors, setGrammarErrors, setSentiment } = useEditor();
     const [tabValue, setTabValue] = useState(0);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [tabLoading, setTabLoading] = useState({
+        corrections: false,
+        suggestions: false,
+        sentiment: false,
+        translate: false
+    });
+
+    // Analyse automatique du texte
+    useEffect(() => {
+        const analyzeContent = async () => {
+            if (!state.content || state.content.trim().length < 3) {
+                setSpellErrors([]);
+                setSentiment({ label: 'neutral', confidence: 0.5 });
+                return;
+            }
+
+            setIsAnalyzing(true);
+            setTabLoading(prev => ({ ...prev, corrections: true, sentiment: true }));
+
+            try {
+                const analysis = await apiService.analyzeText(state.content);
+
+                setSpellErrors(analysis.spellErrors || []);
+                setGrammarErrors(analysis.grammarErrors || []);
+
+                if (analysis.sentiment) {
+                    setSentiment(analysis.sentiment);
+                }
+            } catch (error) {
+                console.error('Analysis error:', error);
+                showSnackbar('Erreur lors de l\'analyse', 'error');
+            } finally {
+                setIsAnalyzing(false);
+                setTabLoading(prev => ({ ...prev, corrections: false, sentiment: false }));
+            }
+        };
+
+        // Debounce l'analyse
+        const timeoutId = setTimeout(analyzeContent, 1000);
+        return () => clearTimeout(timeoutId);
+    }, [state.content, setSpellErrors, setGrammarErrors, setSentiment]);
 
     const handleTabChange = useCallback((newValue) => {
         setTabValue(newValue);
@@ -194,11 +242,33 @@ export function Sidebar({ onClose }) {
         setSnackbar({ open: true, message, severity });
     }, []);
 
+    const handleRefreshAnalysis = useCallback(async () => {
+        if (!state.content) return;
+
+        setIsAnalyzing(true);
+        setTabLoading(prev => ({ ...prev, corrections: true, sentiment: true }));
+
+        try {
+            const analysis = await apiService.analyzeText(state.content);
+            setSpellErrors(analysis.spellErrors || []);
+            setGrammarErrors(analysis.grammarErrors || []);
+            if (analysis.sentiment) {
+                setSentiment(analysis.sentiment);
+            }
+            showSnackbar('Analyse actualisée', 'success');
+        } catch (error) {
+            showSnackbar('Erreur lors de l\'analyse', 'error');
+        } finally {
+            setIsAnalyzing(false);
+            setTabLoading(prev => ({ ...prev, corrections: false, sentiment: false }));
+        }
+    }, [state.content, setSpellErrors, setGrammarErrors, setSentiment, showSnackbar]);
+
     const tabs = [
-        { icon: <Spellcheck />, label: 'Corrections', badge: errorCount, color: theme.palette.error.main },
-        { icon: <Lightbulb />, label: 'Suggestions', badge: 0, color: theme.palette.warning.main },
-        { icon: <Psychology />, label: 'Analyse', badge: 0, color: theme.palette.info.main },
-        { icon: <Translate />, label: 'Traduction', badge: 0, color: theme.palette.success.main }
+        { icon: <Spellcheck />, label: 'Corrections', badge: errorCount, color: theme.palette.error.main, loading: tabLoading.corrections },
+        { icon: <Lightbulb />, label: 'Suggestions', badge: 0, color: theme.palette.warning.main, loading: tabLoading.suggestions },
+        { icon: <Psychology />, label: 'Analyse', badge: 0, color: theme.palette.info.main, loading: tabLoading.sentiment },
+        { icon: <Translate />, label: 'Traduction', badge: 0, color: theme.palette.success.main, loading: tabLoading.translate }
     ];
 
     const SidebarContent = (
@@ -241,7 +311,7 @@ export function Sidebar({ onClose }) {
 
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <motion.div animate={pulseAnimation}>
+                        <motion.div animate={isAnalyzing ? { rotate: 360 } : pulseAnimation} transition={isAnalyzing ? { duration: 1, repeat: Infinity, ease: 'linear' } : undefined}>
                             <Box
                                 sx={{
                                     width: 40,
@@ -254,7 +324,11 @@ export function Sidebar({ onClose }) {
                                     boxShadow: `0 4px 15px ${alpha(theme.palette.primary.main, 0.3)}`
                                 }}
                             >
-                                <AutoFixHigh sx={{ color: '#fff', fontSize: 22 }} />
+                                {isAnalyzing ? (
+                                    <Sync sx={{ color: '#fff', fontSize: 22 }} />
+                                ) : (
+                                    <AutoFixHigh sx={{ color: '#fff', fontSize: 22 }} />
+                                )}
                             </Box>
                         </motion.div>
                         <Box>
@@ -262,26 +336,43 @@ export function Sidebar({ onClose }) {
                                 Assistant IA
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                                Votre aide à la rédaction
+                                {isAnalyzing ? 'Analyse en cours...' : 'Votre aide à la rédaction'}
                             </Typography>
                         </Box>
                     </Box>
 
-                    <Tooltip title="Fermer" arrow>
-                        <IconButton
-                            size="small"
-                            onClick={handleClose}
-                            sx={{
-                                bgcolor: alpha(theme.palette.grey[500], 0.1),
-                                '&:hover': {
-                                    bgcolor: alpha(theme.palette.error.main, 0.1),
-                                    color: theme.palette.error.main
-                                }
-                            }}
-                        >
-                            <Close fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Tooltip title="Actualiser l'analyse" arrow>
+                            <IconButton
+                                size="small"
+                                onClick={handleRefreshAnalysis}
+                                disabled={isAnalyzing}
+                                sx={{
+                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                    '&:hover': {
+                                        bgcolor: alpha(theme.palette.primary.main, 0.2)
+                                    }
+                                }}
+                            >
+                                <Refresh fontSize="small" sx={{ animation: isAnalyzing ? 'spin 1s linear infinite' : 'none', '@keyframes spin': { '100%': { transform: 'rotate(360deg)' } } }} />
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Fermer" arrow>
+                            <IconButton
+                                size="small"
+                                onClick={handleClose}
+                                sx={{
+                                    bgcolor: alpha(theme.palette.grey[500], 0.1),
+                                    '&:hover': {
+                                        bgcolor: alpha(theme.palette.error.main, 0.1),
+                                        color: theme.palette.error.main
+                                    }
+                                }}
+                            >
+                                <Close fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
                 </Box>
             </Box>
 
@@ -304,13 +395,14 @@ export function Sidebar({ onClose }) {
                         onClick={() => handleTabChange(index)}
                         badge={tab.badge}
                         color={tab.color}
+                        isLoading={tab.loading}
                     />
                 ))}
             </Box>
 
             {/* Loading indicator */}
             <AnimatePresence>
-                {state.isLoading && (
+                {(state.isLoading || isAnalyzing) && (
                     <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
@@ -340,10 +432,10 @@ export function Sidebar({ onClose }) {
                         transition={{ duration: 0.2 }}
                         style={{ height: '100%' }}
                     >
-                        {tabValue === 0 && <CorrectionsPanel showSnackbar={showSnackbar} />}
+                        {tabValue === 0 && <CorrectionsPanel showSnackbar={showSnackbar} isLoading={tabLoading.corrections} />}
                         {tabValue === 1 && <SuggestionsPanel showSnackbar={showSnackbar} />}
-                        {tabValue === 2 && <AnalysisPanel />}
-                        {tabValue === 3 && <TranslationPanel showSnackbar={showSnackbar} />}
+                        {tabValue === 2 && <AnalysisPanel isLoading={tabLoading.sentiment} />}
+                        {tabValue === 3 && <TranslationPanel showSnackbar={showSnackbar} setLoading={(loading) => setTabLoading(prev => ({ ...prev, translate: loading }))} />}
                     </motion.div>
                 </AnimatePresence>
             </Box>
@@ -394,16 +486,22 @@ export function Sidebar({ onClose }) {
 // ============================================
 // CORRECTIONS PANEL
 // ============================================
-function CorrectionsPanel({ showSnackbar }) {
+function CorrectionsPanel({ showSnackbar, isLoading }) {
     const theme = useTheme();
     const { state, setContent } = useEditor();
     const [expandedError, setExpandedError] = useState(null);
     const [fixedErrors, setFixedErrors] = useState(new Set());
+    const [localLoading, setLocalLoading] = useState(false);
 
     const allErrors = useMemo(() =>
         [...state.spellErrors, ...state.grammarErrors],
         [state.spellErrors, state.grammarErrors]
     );
+
+    // Reset fixed errors when content changes
+    useEffect(() => {
+        setFixedErrors(new Set());
+    }, [state.content]);
 
     const handleApplyCorrection = useCallback((error, suggestion, index) => {
         const newContent = state.content.substring(0, error.position.start) +
@@ -414,23 +512,43 @@ function CorrectionsPanel({ showSnackbar }) {
         showSnackbar?.(`Correction appliquée: "${suggestion}"`, 'success');
     }, [state.content, setContent, showSnackbar]);
 
-    const handleFixAll = useCallback(() => {
-        let newContent = state.content;
-        let offset = 0;
+    const handleFixAll = useCallback(async () => {
+        setLocalLoading(true);
 
-        allErrors.forEach((error) => {
-            if (error.suggestions?.[0]) {
-                const start = error.position.start + offset;
-                const end = error.position.end + offset;
-                newContent = newContent.substring(0, start) + error.suggestions[0] + newContent.substring(end);
-                offset += error.suggestions[0].length - (error.position.end - error.position.start);
-            }
-        });
+        try {
+            let newContent = state.content;
+            let offset = 0;
 
-        setContent(newContent, newContent);
-        setFixedErrors(new Set(allErrors.map((_, i) => i)));
-        showSnackbar?.(`${allErrors.length} corrections appliquées`, 'success');
+            allErrors.forEach((error) => {
+                if (error.suggestions?.[0]) {
+                    const start = error.position.start + offset;
+                    const end = error.position.end + offset;
+                    newContent = newContent.substring(0, start) + error.suggestions[0] + newContent.substring(end);
+                    offset += error.suggestions[0].length - (error.position.end - error.position.start);
+                }
+            });
+
+            setContent(newContent, newContent);
+            setFixedErrors(new Set(allErrors.map((_, i) => i)));
+            showSnackbar?.(`${allErrors.length} corrections appliquées`, 'success');
+        } catch (error) {
+            showSnackbar?.('Erreur lors de la correction', 'error');
+        } finally {
+            setLocalLoading(false);
+        }
     }, [allErrors, state.content, setContent, showSnackbar]);
+
+    // Loading skeleton
+    if (isLoading) {
+        return (
+            <Box sx={{ p: 2 }}>
+                <Skeleton variant="rounded" height={80} sx={{ mb: 2, borderRadius: 3 }} />
+                {[1, 2, 3].map(i => (
+                    <Skeleton key={i} variant="rounded" height={60} sx={{ mb: 1.5, borderRadius: 2 }} />
+                ))}
+            </Box>
+        );
+    }
 
     if (allErrors.length === 0) {
         return (
@@ -510,8 +628,9 @@ function CorrectionsPanel({ showSnackbar }) {
                         <Button
                             variant="contained"
                             size="small"
-                            startIcon={<AutoFixHigh />}
+                            startIcon={localLoading ? <CircularProgress size={16} color="inherit" /> : <AutoFixHigh />}
                             onClick={handleFixAll}
+                            disabled={localLoading || fixedErrors.size === allErrors.length}
                             sx={{
                                 borderRadius: 2,
                                 background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
@@ -520,7 +639,7 @@ function CorrectionsPanel({ showSnackbar }) {
                                 fontWeight: 600
                             }}
                         >
-                            Tout corriger
+                            {localLoading ? 'Correction...' : 'Tout corriger'}
                         </Button>
                     </motion.div>
                 </Tooltip>
@@ -641,6 +760,7 @@ function ErrorCard({ error, index, expanded, isFixed, onToggle, onApply }) {
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                             {isSpelling ? 'Faute d\'orthographe' : 'Erreur grammaticale'}
+                            {error.confidence && ` • ${Math.round(error.confidence)}% confiance`}
                         </Typography>
                     </Box>
                 </Box>
@@ -671,32 +791,38 @@ function ErrorCard({ error, index, expanded, isFixed, onToggle, onApply }) {
                     </Typography>
 
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {error.suggestions?.map((suggestion, idx) => (
-                            <motion.div
-                                key={idx}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                            >
-                                <Chip
-                                    label={suggestion}
-                                    onClick={() => onApply(suggestion)}
-                                    icon={idx === 0 ? <AutoFixHigh fontSize="small" /> : undefined}
-                                    sx={{
-                                        cursor: 'pointer',
-                                        fontWeight: idx === 0 ? 600 : 400,
-                                        bgcolor: idx === 0 ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
-                                        border: `1px solid ${idx === 0 ? theme.palette.primary.main : theme.palette.divider}`,
-                                        '&:hover': {
-                                            bgcolor: theme.palette.primary.main,
-                                            color: '#fff',
-                                            '& .MuiChip-icon': {
-                                                color: '#fff'
+                        {error.suggestions?.length > 0 ? (
+                            error.suggestions.map((suggestion, idx) => (
+                                <motion.div
+                                    key={idx}
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                >
+                                    <Chip
+                                        label={suggestion}
+                                        onClick={() => onApply(suggestion)}
+                                        icon={idx === 0 ? <AutoFixHigh fontSize="small" /> : undefined}
+                                        sx={{
+                                            cursor: 'pointer',
+                                            fontWeight: idx === 0 ? 600 : 400,
+                                            bgcolor: idx === 0 ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                                            border: `1px solid ${idx === 0 ? theme.palette.primary.main : theme.palette.divider}`,
+                                            '&:hover': {
+                                                bgcolor: theme.palette.primary.main,
+                                                color: '#fff',
+                                                '& .MuiChip-icon': {
+                                                    color: '#fff'
+                                                }
                                             }
-                                        }
-                                    }}
-                                />
-                            </motion.div>
-                        ))}
+                                        }}
+                                    />
+                                </motion.div>
+                            ))
+                        ) : (
+                            <Typography variant="caption" color="text.secondary" fontStyle="italic">
+                                Aucune suggestion disponible
+                            </Typography>
+                        )}
                     </Box>
                 </Box>
             </Collapse>
@@ -709,12 +835,162 @@ function ErrorCard({ error, index, expanded, isFixed, onToggle, onApply }) {
 // ============================================
 function SuggestionsPanel({ showSnackbar }) {
     const theme = useTheme();
-    const { state } = useEditor();
+    const { state, setContent } = useEditor();
+    const [suggestions, setSuggestions] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
 
-    // Utilise le composant Suggestions existant ou affiche un placeholder
+    // Récupérer les suggestions d'autocomplétion
+    useEffect(() => {
+        const fetchSuggestions = async () => {
+            if (!state.content || state.content.trim().length < 3) {
+                setSuggestions([]);
+                return;
+            }
+
+            setIsLoading(true);
+            try {
+                const result = await apiService.getSuggestions(state.content);
+                setSuggestions(result);
+            } catch (error) {
+                console.error('Error fetching suggestions:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        const timeoutId = setTimeout(fetchSuggestions, 500);
+        return () => clearTimeout(timeoutId);
+    }, [state.content]);
+
+    const handleApplySuggestion = useCallback((suggestion) => {
+        const words = state.content.trim().split(/\s+/);
+        words[words.length - 1] = suggestion.text;
+        const newContent = words.join(' ') + ' ';
+        setContent(newContent, newContent);
+        showSnackbar?.(`"${suggestion.text}" ajouté`, 'success');
+    }, [state.content, setContent, showSnackbar]);
+
+    const handleCopySuggestion = useCallback((text) => {
+        navigator.clipboard.writeText(text);
+        showSnackbar?.('Copié dans le presse-papiers', 'success');
+    }, [showSnackbar]);
+
+    if (isLoading) {
+        return (
+            <Box sx={{ p: 2 }}>
+                <Skeleton variant="text" width="60%" height={30} sx={{ mb: 2 }} />
+                {[1, 2, 3].map(i => (
+                    <Skeleton key={i} variant="rounded" height={50} sx={{ mb: 1.5, borderRadius: 2 }} />
+                ))}
+            </Box>
+        );
+    }
+
+    if (suggestions.length === 0) {
+        return (
+            <Box
+                sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    p: 4,
+                    height: '100%',
+                    textAlign: 'center'
+                }}
+            >
+                <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 200 }}
+                >
+                    <Box
+                        sx={{
+                            width: 80,
+                            height: 80,
+                            borderRadius: '50%',
+                            background: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.2)}, ${alpha(theme.palette.warning.light, 0.1)})`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            mb: 2
+                        }}
+                    >
+                        <Lightbulb sx={{ fontSize: 40, color: theme.palette.warning.main }} />
+                    </Box>
+                </motion.div>
+                <Typography variant="h6" fontWeight={600} gutterBottom>
+                    Suggestions d'écriture
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 250 }}>
+                    Commencez à écrire pour recevoir des suggestions d'autocomplétion intelligentes.
+                </Typography>
+            </Box>
+        );
+    }
+
     return (
         <Box sx={{ p: 2 }}>
-            <Suggestions showSnackbar={showSnackbar} />
+            <Typography variant="subtitle2" fontWeight={600} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Lightbulb fontSize="small" color="warning" />
+                Suggestions ({suggestions.length})
+            </Typography>
+
+            <motion.div variants={containerVariants} initial="hidden" animate="visible">
+                {suggestions.map((suggestion, index) => (
+                    <motion.div key={index} variants={itemVariants}>
+                        <Box
+                            sx={{
+                                mb: 1.5,
+                                p: 2,
+                                borderRadius: 3,
+                                bgcolor: alpha(theme.palette.warning.main, 0.05),
+                                border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                cursor: 'pointer',
+                                transition: 'all 0.3s ease',
+                                '&:hover': {
+                                    bgcolor: alpha(theme.palette.warning.main, 0.1),
+                                    transform: 'translateX(5px)'
+                                }
+                            }}
+                            onClick={() => handleApplySuggestion(suggestion)}
+                        >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Typography fontWeight={600}>
+                                    {suggestion.text}
+                                </Typography>
+                                <Chip
+                                    label={`${Math.round(suggestion.score * 100)}%`}
+                                    size="small"
+                                    sx={{
+                                        height: 20,
+                                        fontSize: '0.65rem',
+                                        bgcolor: alpha(theme.palette.success.main, 0.1),
+                                        color: theme.palette.success.main
+                                    }}
+                                />
+                            </Box>
+                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                <Tooltip title="Copier" arrow>
+                                    <IconButton
+                                        size="small"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCopySuggestion(suggestion.text);
+                                        }}
+                                    >
+                                        <ContentCopy fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                                <KeyboardArrowRight fontSize="small" color="action" />
+                            </Box>
+                        </Box>
+                    </motion.div>
+                ))}
+            </motion.div>
         </Box>
     );
 }
@@ -722,11 +998,11 @@ function SuggestionsPanel({ showSnackbar }) {
 // ============================================
 // ANALYSIS PANEL
 // ============================================
-function AnalysisPanel() {
+function AnalysisPanel({ isLoading }) {
     const theme = useTheme();
     const { state } = useEditor();
 
-    const sentimentData = state.sentiment || { label: 'neutral', confidence: 0.5 };
+    const sentimentData = state.sentiment || { label: 'neutral', confidence: 0.5, score: 0 };
 
     const getSentimentInfo = useCallback((label) => {
         const info = {
@@ -747,6 +1023,20 @@ function AnalysisPanel() {
         { icon: <TrendingUp />, label: 'Phrases', value: state.stats.sentences, color: theme.palette.success.main },
         { icon: <Schedule />, label: 'Paragraphes', value: state.stats.paragraphs, color: theme.palette.warning.main }
     ];
+
+    if (isLoading) {
+        return (
+            <Box sx={{ p: 2 }}>
+                <Skeleton variant="rounded" height={200} sx={{ mb: 3, borderRadius: 4 }} />
+                <Skeleton variant="text" width="40%" height={30} sx={{ mb: 2 }} />
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5 }}>
+                    {[1, 2, 3, 4].map(i => (
+                        <Skeleton key={i} variant="rounded" height={80} sx={{ borderRadius: 3 }} />
+                    ))}
+                </Box>
+            </Box>
+        );
+    }
 
     return (
         <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -796,6 +1086,12 @@ function AnalysisPanel() {
                     <Typography variant="h5" fontWeight={700} sx={{ color: sentimentInfo.color, mb: 1 }}>
                         {sentimentInfo.text}
                     </Typography>
+
+                    {sentimentData.sentiment && (
+                        <Typography variant="caption" color="text.secondary">
+                            API: {sentimentData.sentiment} (score: {sentimentData.score})
+                        </Typography>
+                    )}
 
                     <Box sx={{ mt: 2, px: 4 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
@@ -935,15 +1231,16 @@ function StatCard({ icon, label, value, color }) {
 // ============================================
 // TRANSLATION PANEL
 // ============================================
-function TranslationPanel({ showSnackbar }) {
+function TranslationPanel({ showSnackbar, setLoading }) {
     const theme = useTheme();
     const { state } = useEditor();
-    const [sourceLang, setSourceLang] = useState('fr');
-    const [targetLang, setTargetLang] = useState('en');
+    const [sourceLang, setSourceLang] = useState('mg'); // Malagasy par défaut
+    const [targetLang, setTargetLang] = useState('fr');
     const [translation, setTranslation] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
 
     const languages = [
+        { code: 'mg', name: 'Malagasy', flag: '🇲🇬' },
         { code: 'fr', name: 'Français', flag: '🇫🇷' },
         { code: 'en', name: 'Anglais', flag: '🇬🇧' },
         { code: 'es', name: 'Espagnol', flag: '🇪🇸' },
@@ -952,28 +1249,32 @@ function TranslationPanel({ showSnackbar }) {
         { code: 'pt', name: 'Portugais', flag: '🇵🇹' },
         { code: 'ar', name: 'Arabe', flag: '🇸🇦' },
         { code: 'zh', name: 'Chinois', flag: '🇨🇳' },
-        { code: 'ja', name: 'Japonais', flag: '🇯🇵' },
-        { code: 'ko', name: 'Coréen', flag: '🇰🇷' }
+        { code: 'ja', name: 'Japonais', flag: '🇯🇵' }
     ];
 
     const handleSwapLanguages = () => {
         const temp = sourceLang;
         setSourceLang(targetLang);
         setTargetLang(temp);
+        if (translation) {
+            // Swap les textes aussi si une traduction existe
+            setTranslation('');
+        }
     };
 
     const handleTranslate = async () => {
-        if (!state.selectedText && !state.content) {
+        const textToTranslate = state.selectedText || state.content;
+
+        if (!textToTranslate || textToTranslate.trim().length === 0) {
             showSnackbar?.('Veuillez saisir du texte à traduire', 'warning');
             return;
         }
 
         setIsTranslating(true);
+        setLoading?.(true);
+
         try {
-            const textToTranslate = state.selectedText || state.content;
-            const result = await import('../../services/apiService').then(m =>
-                m.apiService.translate(textToTranslate, sourceLang, targetLang)
-            );
+            const result = await apiService.translate(textToTranslate, sourceLang, targetLang);
             setTranslation(result.translated_text || textToTranslate);
             showSnackbar?.('Traduction terminée', 'success');
         } catch (error) {
@@ -981,12 +1282,15 @@ function TranslationPanel({ showSnackbar }) {
             showSnackbar?.('Erreur lors de la traduction', 'error');
         } finally {
             setIsTranslating(false);
+            setLoading?.(false);
         }
     };
 
     const handleCopyTranslation = () => {
-        navigator.clipboard.writeText(translation);
-        showSnackbar?.('Traduction copiée !', 'success');
+        if (translation) {
+            navigator.clipboard.writeText(translation);
+            showSnackbar?.('Traduction copiée !', 'success');
+        }
     };
 
     const textToTranslate = state.selectedText || state.content || '';
@@ -1070,7 +1374,7 @@ function TranslationPanel({ showSnackbar }) {
                     📝 Texte source
                     {textToTranslate && (
                         <Chip
-                            label={`${textToTranslate.split(' ').length} mots`}
+                            label={`${textToTranslate.split(/\s+/).filter(Boolean).length} mots`}
                             size="small"
                             sx={{ ml: 'auto', height: 20, fontSize: '0.65rem' }}
                         />
@@ -1105,7 +1409,13 @@ function TranslationPanel({ showSnackbar }) {
                     size="large"
                     onClick={handleTranslate}
                     disabled={isTranslating || !textToTranslate}
-                    startIcon={isTranslating ? <Refresh className="spinning" /> : <Translate />}
+                    startIcon={
+                        isTranslating ? (
+                            <CircularProgress size={20} color="inherit" />
+                        ) : (
+                            <Translate />
+                        )
+                    }
                     sx={{
                         py: 1.5,
                         borderRadius: 3,
@@ -1116,13 +1426,6 @@ function TranslationPanel({ showSnackbar }) {
                         fontSize: '1rem',
                         '&:disabled': {
                             background: theme.palette.grey[300]
-                        },
-                        '& .spinning': {
-                            animation: 'spin 1s linear infinite'
-                        },
-                        '@keyframes spin': {
-                            '0%': { transform: 'rotate(0deg)' },
-                            '100%': { transform: 'rotate(360deg)' }
                         }
                     }}
                 >

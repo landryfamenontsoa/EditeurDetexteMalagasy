@@ -22,33 +22,6 @@ def create_app(config_class=Config):
     # Enregistrer les blueprints
     register_routes(app)
 
-    @app.route("/lemmatize", methods=["GET"])
-    def lemma():
-        word = request.args.get("word")
-        return jsonify(lemmatize(word))
-
-    @app.route("/autocomplete", methods=["GET"])
-    def autocomplete():
-        word = request.args.get("word")
-        return jsonify({
-            "word": word,
-            "suggestions": predict_next(word)
-        })
-
-    @app.route("/tts", methods=["POST"])
-    def tts():
-        data = request.get_json(silent=True) or {}
-        text = data.get("text")
-        filename = generate_audio(text)
-        return jsonify({"audio": filename})
-
-    @app.route("/")
-    def index():
-        return jsonify({
-            "service": "Editeur de Texte Malagasy - Backend",
-            "status": "ok"
-        })
-
     return app
 
 
