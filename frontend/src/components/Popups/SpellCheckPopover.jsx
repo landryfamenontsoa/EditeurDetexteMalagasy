@@ -73,11 +73,11 @@ const SpellCheckPopover = ({ anchorEl, word, onClose }) => {
             onClose={onClose}
             anchorOrigin={{
                 vertical: 'bottom',
-                horizontal: 'left',
+                horizontal: 'center',
             }}
             transformOrigin={{
                 vertical: 'top',
-                horizontal: 'left',
+                horizontal: 'center',
             }}
             PaperProps={{
                 component: motion.div,

@@ -173,7 +173,7 @@ export function Header({ toggleTheme, currentMode, onMenuClick }) {
                         open={Boolean(langAnchor)}
                         onClose={() => setLangAnchor(null)}
                         PaperProps={{
-                            sx: { mt: 1, minWidth: 150 }
+                            sx: { mt: 10, minWidth: 150 }
                         }}
                     >
                         {Object.values(LANGUAGES).map((lang) => (

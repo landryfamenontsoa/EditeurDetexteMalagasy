@@ -53,6 +53,7 @@ export function AppLayout({ toggleTheme, currentMode }) {
                     component={motion.main}
                     layout
                     sx={{
+                        mt: 2,
                         flex: 1,
                         display: 'flex',
                         flexDirection: 'column',

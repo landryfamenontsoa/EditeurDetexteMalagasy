@@ -28,6 +28,8 @@ const SuggestionTooltip = ({ word, suggestion, confidence, onAccept, onIgnore })
         <Paper
             elevation={2}
             sx={{
+                mt: 20,
+                ml: 50,
                 width: 180,
                 borderRadius: 1,
                 overflow: 'hidden',

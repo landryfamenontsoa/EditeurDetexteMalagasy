@@ -339,25 +339,43 @@ export function Editor() {
                 </Paper>
             </motion.div>
 
-            {/* Tooltip de suggestion */}
+            {/* Tooltip de suggestion centré */}
             <Popper
                 open={!!tooltipData && !!tooltipAnchorEl}
                 anchorEl={tooltipAnchorEl}
-                placement="bottom-start"
+                placement="bottom"          // bottom-center
                 transition
                 disablePortal={false}
                 modifiers={[
                     {
                         name: 'offset',
                         options: {
-                            offset: [0, 8],
+                            offset: [0, 8], // distance verticale
+                        },
+                    },
+                    {
+                        name: 'preventOverflow',
+                        options: {
+                            padding: 8,
+                        },
+                    },
+                    {
+                        name: 'flip',
+                        options: {
+                            fallbackPlacements: ['top', 'right', 'left'],
+                        },
+                    },
+                    {
+                        name: 'computeStyles',
+                        options: {
+                            adaptive: true,
                         },
                     },
                 ]}
             >
                 {({ TransitionProps }) => (
                     <Fade {...TransitionProps} timeout={200}>
-                        <div>
+                        <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
                             {tooltipData && (
                                 <SuggestionTooltip
                                     word={tooltipData.word}
@@ -371,6 +389,7 @@ export function Editor() {
                     </Fade>
                 )}
             </Popper>
+
         </Box>
     );
 }
