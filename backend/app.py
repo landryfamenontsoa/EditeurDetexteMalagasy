@@ -10,6 +10,7 @@ from services.lemmatizer import lemmatize
 from services.autocomplete import predict_next
 from services.sentiment import analyze
 from services.tts import generate_audio
+from services.phonotactic_validator import check_phonotactics
 
 
 def create_app(config_class=Config):
@@ -64,6 +65,18 @@ def create_app(config_class=Config):
             "service": "Editeur de Texte Malagasy - Backend",
             "status": "ok"
         })
+    
+
+    @app.route("/phonotactic-check", methods=["GET"])
+    def phonotactic_check():
+        word = request.args.get("word")
+        result = check_phonotactics(word)
+        return jsonify({
+            "word": word,
+            "valid": result["valid"],
+            "errors": result["errors"]
+        })
+
 
     return app
 
