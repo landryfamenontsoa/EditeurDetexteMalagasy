@@ -37,6 +37,7 @@ backend/ENV/
 # Flask
 backend/instance/
 backend/.flaskenv
+backend/request.http
 
 # Python tools
 backend/.pytest_cache/

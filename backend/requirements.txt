@@ -43,3 +43,5 @@ gTTS==2.4.0
 # ENV / CONFIG
 ############################
 python-dotenv>=1.0.0
+
+rapidfuzz
