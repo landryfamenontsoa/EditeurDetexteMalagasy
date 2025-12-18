@@ -6,10 +6,12 @@ from routes import register_routes
 
 from services.spellchecker import check_word
 from services.rules import validate_word
-from services.lemmatizer import lemmatize
+from services.lemmatizer import MalagasyLemmatizer
 from services.autocomplete import predict_next
 from services.sentiment import analyze
 from services.tts import generate_audio
+from services.phonotactic_validator import check_phonotactics
+from services.lemmatizer import _lem 
 
 
 def create_app(config_class=Config):
@@ -21,6 +23,79 @@ def create_app(config_class=Config):
 
     # Enregistrer les blueprints
     register_routes(app)
+
+    @app.route("/spellcheck", methods=["GET"])
+    def spellcheck():
+        word = request.args.get("word")
+        return jsonify(check_word(word))
+
+    @app.route("/rules", methods=["GET"])
+    def rules():
+        word = request.args.get("word")
+        return jsonify(validate_word(word))
+
+ # on importe l'instance globale
+
+    @app.route("/lemmatize", methods=["POST"])
+    def lemma():
+        data = request.get_json(silent=True) or {}
+        word = data.get("word", "").strip()
+        if not word:
+            return jsonify({"error": "Aucun mot fourni"}), 400
+
+        result = _lem.lemmatize(word)
+        return jsonify(result)
+    
+    @app.route("/in_dict", methods=["POST"])
+    def inr():
+            data = request.get_json(silent=True) or {}
+            word = data.get("word", "").strip()
+            if not word:
+                return jsonify({"error": "Aucun mot fourni"}), 400
+
+            result = _lem.in_dict(word)
+            return jsonify(result)
+
+
+    @app.route("/autocomplete", methods=["GET"])
+    def autocomplete():
+        word = request.args.get("word")
+        return jsonify({
+            "word": word,
+            "suggestions": predict_next(word)
+        })
+
+    @app.route("/sentiment", methods=["POST"])
+    def sentiment():
+        data = request.get_json(silent=True) or {}
+        text = data.get("text")
+        return jsonify(analyze(text))
+
+    @app.route("/tts", methods=["POST"])
+    def tts():
+        data = request.get_json(silent=True) or {}
+        text = data.get("text")
+        filename = generate_audio(text)
+        return jsonify({"audio": filename})
+
+    @app.route("/")
+    def index():
+        return jsonify({
+            "service": "Editeur de Texte Malagasy - Backend",
+            "status": "ok"
+        })
+    
+
+    @app.route("/phonotactic-check", methods=["GET"])
+    def phonotactic_check():
+        word = request.args.get("word")
+        result = check_phonotactics(word)
+        return jsonify({
+            "word": word,
+            "valid": result["valid"],
+            "errors": result["errors"]
+        })
+
 
     return app
 

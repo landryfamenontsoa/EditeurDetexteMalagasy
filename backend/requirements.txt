@@ -14,10 +14,6 @@ Flask-Migrate==4.0.5
 ############################
 # MySQL
 mysqlclient==2.2.4 ; platform_system != "Windows"
-PyMySQL==1.1.0     ; platform_system == "Windows"
-
-# Cache / Queue
-redis==5.0.1
 
 ############################
 # NLP / IA
