@@ -1,0 +1,82 @@
+{
+  "prefixes": [
+    "mamp",
+    "mank",
+    "man",
+    "mah",
+    "mi",
+    "mam",
+    "mana",
+    "manka",
+    "tafa",
+    "voa",
+    "a",
+    "an",
+    "ank",
+    "amp",
+    "if",
+    "faha",
+    "famp",
+    "fan",
+    "fank",
+    "fi",
+    "mp"
+  ],
+  "suffixes": [
+    "ana",
+    "ina",
+    "aina",
+    "na",
+    "tra",
+    "ka",
+    "ny",
+    "ntsika",
+    "nareo",
+    "ny",
+    "ko",
+    "nao",
+    "ny"
+  ],
+  "rules": [
+    {
+      "pattern": "^mamp",
+      "remove": "mamp",
+      "type": "causatif"
+    },
+    {
+      "pattern": "^man",
+      "remove": "man",
+      "type": "actif"
+    },
+    {
+      "pattern": "^mi",
+      "remove": "mi",
+      "type": "actif"
+    },
+    {
+      "pattern": "^maha",
+      "remove": "maha",
+      "type": "potentiel"
+    },
+    {
+      "pattern": "^tafa",
+      "remove": "tafa",
+      "type": "passif"
+    },
+    {
+      "pattern": "^voa",
+      "remove": "voa",
+      "type": "passif"
+    },
+    {
+      "pattern": "ana$",
+      "remove": "ana",
+      "type": "suffixe"
+    },
+    {
+      "pattern": "ina$",
+      "remove": "ina",
+      "type": "suffixe"
+    }
+  ]
+}
