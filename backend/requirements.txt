@@ -1,5 +1,45 @@
-Flask>=2.0
-Flask-Cors>=3.0
-python-dotenv>=1.0
-requests>=2.0
-nltk>=3.0
+############################
+# CORE BACKEND (Flask API)
+############################
+Flask==3.0.0
+Flask-CORS==4.0.0
+Flask-JWT-Extended==4.6.0
+Flask-Login==0.6.3
+Flask-Mail==0.9.1
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.5
+
+############################
+# DATABASE
+############################
+# MySQL
+mysqlclient==2.2.4 ; platform_system != "Windows"
+PyMySQL==1.1.0     ; platform_system == "Windows"
+
+# Cache / Queue
+redis==5.0.1
+
+############################
+# NLP / IA
+############################
+nltk==3.8.1
+spacy==3.7.2
+rapidfuzz==3.5.2
+networkx==3.2.1
+
+############################
+# SCRAPING / DATA
+############################
+beautifulsoup4==4.12.2
+requests==2.31.0
+pandas==2.1.4
+
+############################
+# TEXT TO SPEECH
+############################
+gTTS==2.4.0
+
+############################
+# ENV / CONFIG
+############################
+python-dotenv>=1.0.0
