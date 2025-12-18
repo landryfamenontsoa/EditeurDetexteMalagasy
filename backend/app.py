@@ -22,16 +22,6 @@ def create_app(config_class=Config):
     # Enregistrer les blueprints
     register_routes(app)
 
-    @app.route("/spellcheck", methods=["GET"])
-    def spellcheck():
-        word = request.args.get("word")
-        return jsonify(check_word(word))
-
-    @app.route("/rules", methods=["GET"])
-    def rules():
-        word = request.args.get("word")
-        return jsonify(validate_word(word))
-
     @app.route("/lemmatize", methods=["GET"])
     def lemma():
         word = request.args.get("word")
@@ -44,12 +34,6 @@ def create_app(config_class=Config):
             "word": word,
             "suggestions": predict_next(word)
         })
-
-    @app.route("/sentiment", methods=["POST"])
-    def sentiment():
-        data = request.get_json(silent=True) or {}
-        text = data.get("text")
-        return jsonify(analyze(text))
 
     @app.route("/tts", methods=["POST"])
     def tts():
