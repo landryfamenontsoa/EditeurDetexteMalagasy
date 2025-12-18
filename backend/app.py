@@ -6,11 +6,12 @@ from routes import register_routes
 
 from services.spellchecker import check_word
 from services.rules import validate_word
-from services.lemmatizer import lemmatize
+from services.lemmatizer import MalagasyLemmatizer
 from services.autocomplete import predict_next
 from services.sentiment import analyze
 from services.tts import generate_audio
 from services.phonotactic_validator import check_phonotactics
+from services.lemmatizer import _lem 
 
 
 def create_app(config_class=Config):
@@ -33,10 +34,28 @@ def create_app(config_class=Config):
         word = request.args.get("word")
         return jsonify(validate_word(word))
 
-    @app.route("/lemmatize", methods=["GET"])
+ # on importe l'instance globale
+
+    @app.route("/lemmatize", methods=["POST"])
     def lemma():
-        word = request.args.get("word")
-        return jsonify(lemmatize(word))
+        data = request.get_json(silent=True) or {}
+        word = data.get("word", "").strip()
+        if not word:
+            return jsonify({"error": "Aucun mot fourni"}), 400
+
+        result = _lem.lemmatize(word)
+        return jsonify(result)
+    
+    @app.route("/in_dict", methods=["POST"])
+    def inr():
+            data = request.get_json(silent=True) or {}
+            word = data.get("word", "").strip()
+            if not word:
+                return jsonify({"error": "Aucun mot fourni"}), 400
+
+            result = _lem.in_dict(word)
+            return jsonify(result)
+
 
     @app.route("/autocomplete", methods=["GET"])
     def autocomplete():
