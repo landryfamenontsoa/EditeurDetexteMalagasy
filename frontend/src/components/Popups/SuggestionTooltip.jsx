@@ -5,7 +5,6 @@ import {
     Typography,
     IconButton,
     Box,
-    Divider,
     useTheme,
     alpha
 } from '@mui/material';
@@ -29,23 +28,45 @@ const SuggestionTooltip = ({ word, suggestion, confidence, onAccept, onIgnore })
         <Paper
             elevation={2}
             sx={{
-                maxWidth: 200,
+                maxWidth: 220,
                 borderRadius: 1,
                 overflow: 'hidden',
                 border: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
                 boxShadow: `0 2px 6px ${alpha(theme.palette.common.black, 0.1)}`
             }}
         >
-            {/* Suggestion */}
+            {/* En-tête avec le mot incorrect */}
+            <Box
+                sx={{
+                    p: 0.5,
+                    pl: 1,
+                    backgroundColor: alpha(theme.palette.background.default, 0.6),
+                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`
+                }}
+            >
+                <Typography
+                    variant="caption"
+                    sx={{
+                        fontSize: '0.7rem',
+                        color: theme.palette.text.secondary,
+                        textDecoration: 'line-through',
+                        fontStyle: 'italic'
+                    }}
+                >
+                    {word}
+                </Typography>
+            </Box>
+
+            {/* Suggestion avec boutons d'action */}
             <Box
                 sx={{
                     p: 0.75,
-                    pl: 1.5,
-                    pr: 1.5,
+                    pl: 1,
+                    pr: 1,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    borderBottom: `2px solid ${getUnderlineColor()}`
+                    borderLeft: `3px solid ${getUnderlineColor()}`
                 }}
             >
                 <Typography
@@ -59,48 +80,36 @@ const SuggestionTooltip = ({ word, suggestion, confidence, onAccept, onIgnore })
                     {suggestion}
                 </Typography>
 
-                <IconButton
-                    size="small"
-                    onClick={() => onAccept(suggestion)}
-                    sx={{
-                        p: 0.5,
-                        ml: 0.5,
-                        color: theme.palette.primary.main,
-                        '&:hover': {
-                            backgroundColor: alpha(theme.palette.primary.main, 0.1)
-                        }
-                    }}
-                >
-                    <CheckIcon fontSize="small" sx={{ fontSize: '1rem' }} />
-                </IconButton>
-            </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <IconButton
+                        size="small"
+                        onClick={() => onAccept(suggestion)}
+                        sx={{
+                            p: 0.5,
+                            color: theme.palette.success.main,
+                            '&:hover': {
+                                backgroundColor: alpha(theme.palette.success.main, 0.1)
+                            }
+                        }}
+                    >
+                        <CheckIcon fontSize="small" sx={{ fontSize: '0.9rem' }} />
+                    </IconButton>
 
-            {/* Séparateur */}
-            <Divider sx={{ m: 0 }} />
-
-            {/* Bouton ignorer */}
-            <Box
-                sx={{
-                    p: 0.5,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    backgroundColor: alpha(theme.palette.background.default, 0.6)
-                }}
-            >
-                <IconButton
-                    size="small"
-                    onClick={onIgnore}
-                    sx={{
-                        p: 0.5,
-                        color: theme.palette.text.secondary,
-                        '&:hover': {
-                            backgroundColor: alpha(theme.palette.action.hover, 0.1)
-                        }
-                    }}
-                >
-                    <CloseIcon fontSize="small" sx={{ fontSize: '0.9rem' }} />
-                </IconButton>
+                    <IconButton
+                        size="small"
+                        onClick={onIgnore}
+                        sx={{
+                            p: 0.5,
+                            ml: 0.25,
+                            color: theme.palette.text.secondary,
+                            '&:hover': {
+                                backgroundColor: alpha(theme.palette.action.hover, 0.1)
+                            }
+                        }}
+                    >
+                        <CloseIcon fontSize="small" sx={{ fontSize: '0.9rem' }} />
+                    </IconButton>
+                </Box>
             </Box>
         </Paper>
     );
